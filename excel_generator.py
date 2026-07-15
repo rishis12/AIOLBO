@@ -1335,6 +1335,257 @@ def build_debt_schedule_tab(wb: Workbook, summary: dict, op_model_refs: dict) ->
 
 
 # =============================================================================
+# RETURNS TAB BUILDER
+# =============================================================================
+
+def build_returns_tab(wb: Workbook, summary: dict, sources_uses_refs: dict,
+                      op_model_refs: dict, debt_schedule_refs: dict) -> dict:
+    """
+    Build the Returns tab.
+
+    Calculates IRR (via XIRR) and MOIC based on:
+    - Entry investment (Sponsor Equity from Sources & Uses)
+    - Exit proceeds (Exit Equity Value = Exit EV - Exit Debt)
+
+    All formulas use DIRECT cell references (no named ranges) for cross-sheet
+    references to avoid the cross-sheet named range resolution bug.
+
+    Returns a dict with row references.
+    """
+    ws = wb.create_sheet("Returns", 4)
+
+    exit_year = op_model_refs['exit_year']
+    ebitda_row = op_model_refs['ebitda_row']
+    ending_balance_row = debt_schedule_refs['ending_balance_row']
+    equity_row = sources_uses_refs['equity_row']
+
+    # Exit year column (e.g., G for 5-year exit)
+    exit_col = get_column_letter(2 + exit_year)
+
+    # Get most recent fiscal year for date calculations
+    fiscal_years = summary.get('fiscal_years', {})
+    if fiscal_years:
+        most_recent_fy = max(fiscal_years.keys())
+    else:
+        most_recent_fy = 2024  # Fallback
+
+    # Column widths - consistent with other tabs
+    ws.column_dimensions['A'].width = 3
+    ws.column_dimensions['B'].width = 38  # Wide enough for longest labels
+
+    # Data columns - need columns for Year 0 through Exit Year for XIRR
+    for i in range(exit_year + 2):  # +2 to cover Year 0 through Exit Year plus some buffer
+        col_letter = get_column_letter(3 + i)
+        ws.column_dimensions[col_letter].width = 22
+
+    current_row = 1
+
+    # ==========================================================================
+    # RETURNS SUMMARY (headline numbers at top)
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="RETURNS SUMMARY")
+    ws.cell(row=current_row, column=2).font = SECTION_HEADER_FONT
+    ws.cell(row=current_row, column=2).fill = SECTION_HEADER_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=4)
+    current_row += 2
+
+    # IRR (large, prominent)
+    irr_display_row = current_row
+    ws.cell(row=current_row, column=2, value="IRR").font = Font(bold=True, size=14)
+    irr_display_cell = ws.cell(row=current_row, column=3)
+    # This will reference the calculated IRR cell below (we'll set row number after we know it)
+    # For now, leave as placeholder - will update after IRR row is created
+    current_row += 1
+
+    # MOIC (large, prominent)
+    moic_display_row = current_row
+    ws.cell(row=current_row, column=2, value="MOIC").font = Font(bold=True, size=14)
+    moic_display_cell = ws.cell(row=current_row, column=3)
+    # This will reference the calculated MOIC cell below
+    current_row += 2
+
+    # ==========================================================================
+    # EXIT VALUATION SECTION
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="Exit Valuation").font = SUBSECTION_FONT
+    ws.cell(row=current_row, column=2).fill = SUBSECTION_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=4)
+    current_row += 1
+
+    # Exit Year EBITDA - direct reference to Operating Model
+    exit_ebitda_row = current_row
+    ws.cell(row=current_row, column=2, value="Exit Year EBITDA").font = BLACK_FONT
+    cell = ws.cell(row=current_row, column=3)
+    # DIRECT cell reference - no named range
+    cell.value = f"='Operating Model'!{exit_col}{ebitda_row}"
+    cell.font = BLACK_FONT
+    cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # Exit Multiple - direct reference to Assumptions
+    exit_multiple_row = current_row
+    ws.cell(row=current_row, column=2, value="Exit EV/EBITDA Multiple").font = BLACK_FONT
+    cell = ws.cell(row=current_row, column=3)
+    # DIRECT cell reference - Assumptions C39 is Exit Multiple
+    cell.value = "='Assumptions'!$C$39"
+    cell.font = BLACK_FONT
+    cell.number_format = MULTIPLE_FORMAT
+    current_row += 1
+
+    # Exit Enterprise Value = Exit EBITDA × Exit Multiple
+    exit_ev_row = current_row
+    ws.cell(row=current_row, column=2, value="Exit Enterprise Value").font = BLACK_FONT
+    cell = ws.cell(row=current_row, column=3)
+    cell.value = f"=C{exit_ebitda_row}*C{exit_multiple_row}"
+    cell.font = BLACK_FONT
+    cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # Exit Debt Balance - direct reference to Debt Schedule
+    exit_debt_row = current_row
+    ws.cell(row=current_row, column=2, value="Exit Debt Balance").font = BLACK_FONT
+    cell = ws.cell(row=current_row, column=3)
+    # DIRECT cell reference - no named range
+    cell.value = f"='Debt Schedule'!{exit_col}{ending_balance_row}"
+    cell.font = BLACK_FONT
+    cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # Exit Equity Value = Exit EV - Exit Debt
+    exit_equity_row = current_row
+    ws.cell(row=current_row, column=2, value="Exit Equity Value").font = BLACK_FONT_BOLD
+    cell = ws.cell(row=current_row, column=3)
+    cell.value = f"=C{exit_ev_row}-C{exit_debt_row}"
+    cell.font = BLACK_FONT_BOLD
+    cell.number_format = CURRENCY_FORMAT
+    cell.border = Border(top=Side(style='thin'), bottom=Side(style='double'))
+    current_row += 2
+
+    # ==========================================================================
+    # ENTRY INVESTMENT SECTION
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="Entry Investment").font = SUBSECTION_FONT
+    ws.cell(row=current_row, column=2).fill = SUBSECTION_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=4)
+    current_row += 1
+
+    # Sponsor Equity (Year 0 investment) - direct reference to Sources & Uses
+    sponsor_equity_row = current_row
+    ws.cell(row=current_row, column=2, value="Sponsor Equity (Year 0)").font = BLACK_FONT
+    cell = ws.cell(row=current_row, column=3)
+    # DIRECT cell reference - Sources & Uses C{equity_row}
+    cell.value = f"='Sources & Uses'!$C${equity_row}"
+    cell.font = BLACK_FONT
+    cell.number_format = CURRENCY_FORMAT
+    current_row += 2
+
+    # ==========================================================================
+    # IRR CALCULATION (using XIRR)
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="IRR Calculation").font = SUBSECTION_FONT
+    ws.cell(row=current_row, column=2).fill = SUBSECTION_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=3 + exit_year)
+    current_row += 1
+
+    # Date row for XIRR - Year 0 through Exit Year
+    dates_row = current_row
+    ws.cell(row=current_row, column=2, value="Dates").font = BLACK_FONT
+    for year in range(0, exit_year + 1):
+        col = 3 + year  # Column C = Year 0, D = Year 1, etc.
+        cell = ws.cell(row=current_row, column=col)
+        # Use DATE function: entry date is end of most recent FY, then add years
+        # DATE(year, month, day) - assume fiscal year end is Dec 31 for simplicity
+        entry_year = most_recent_fy
+        cell.value = f"=DATE({entry_year + year},12,31)"
+        cell.font = BLACK_FONT
+        cell.number_format = "YYYY-MM-DD"
+    current_row += 1
+
+    # Cash flow row for XIRR
+    cashflows_row = current_row
+    ws.cell(row=current_row, column=2, value="Cash Flows").font = BLACK_FONT
+    for year in range(0, exit_year + 1):
+        col = 3 + year
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=current_row, column=col)
+
+        if year == 0:
+            # Year 0: Negative investment (outflow)
+            cell.value = f"=-C{sponsor_equity_row}"
+        elif year == exit_year:
+            # Exit Year: Positive proceeds (inflow)
+            cell.value = f"=C{exit_equity_row}"
+        else:
+            # Interim years: No cash flow (hold period)
+            cell.value = 0
+
+        cell.font = BLACK_FONT
+        cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # IRR using XIRR
+    irr_row = current_row
+    ws.cell(row=current_row, column=2, value="IRR (XIRR)").font = BLACK_FONT_BOLD
+    cell = ws.cell(row=current_row, column=3)
+    # XIRR(values, dates, [guess])
+    # Values range: C{cashflows_row} to {exit_col_for_cf}{cashflows_row}
+    exit_cf_col = get_column_letter(3 + exit_year)
+    cell.value = f"=XIRR(C{cashflows_row}:{exit_cf_col}{cashflows_row},C{dates_row}:{exit_cf_col}{dates_row})"
+    cell.font = BLACK_FONT_BOLD
+    cell.number_format = PERCENT_FORMAT
+    cell.border = Border(top=Side(style='thin'), bottom=Side(style='double'))
+    current_row += 2
+
+    # ==========================================================================
+    # MOIC CALCULATION
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="MOIC Calculation").font = SUBSECTION_FONT
+    ws.cell(row=current_row, column=2).fill = SUBSECTION_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=4)
+    current_row += 1
+
+    # MOIC = Exit Equity / Sponsor Equity
+    moic_row = current_row
+    ws.cell(row=current_row, column=2, value="MOIC").font = BLACK_FONT_BOLD
+    cell = ws.cell(row=current_row, column=3)
+    cell.value = f"=IF(C{sponsor_equity_row}=0,0,C{exit_equity_row}/C{sponsor_equity_row})"
+    cell.font = BLACK_FONT_BOLD
+    cell.number_format = MULTIPLE_FORMAT
+    cell.border = Border(top=Side(style='thin'), bottom=Side(style='double'))
+
+    # ==========================================================================
+    # UPDATE SUMMARY DISPLAY CELLS
+    # ==========================================================================
+
+    # Now update the summary cells at the top to reference the calculated values
+    irr_display_cell.value = f"=C{irr_row}"
+    irr_display_cell.font = Font(bold=True, size=14)
+    irr_display_cell.number_format = PERCENT_FORMAT
+
+    moic_display_cell.value = f"=C{moic_row}"
+    moic_display_cell.font = Font(bold=True, size=14)
+    moic_display_cell.number_format = MULTIPLE_FORMAT
+
+    # Return row references
+    return {
+        'exit_ebitda_row': exit_ebitda_row,
+        'exit_ev_row': exit_ev_row,
+        'exit_debt_row': exit_debt_row,
+        'exit_equity_row': exit_equity_row,
+        'sponsor_equity_row': sponsor_equity_row,
+        'irr_row': irr_row,
+        'moic_row': moic_row,
+        'dates_row': dates_row,
+        'cashflows_row': cashflows_row,
+    }
+
+
+# =============================================================================
 # WIRE UP INTEREST EXPENSE (after Debt Schedule is built)
 # =============================================================================
 
@@ -1432,6 +1683,9 @@ def generate_workbook(validated_summary: dict, output_dir: str = None) -> str:
     # (replaces the placeholder 0 values with actual formulas)
     wire_interest_expense(wb, op_model_refs, debt_schedule_refs)
 
+    # Build Returns tab
+    returns_refs = build_returns_tab(wb, summary, su_refs, op_model_refs, debt_schedule_refs)
+
     # Generate filename
     ticker = summary.get('ticker', 'UNKNOWN')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -1473,6 +1727,7 @@ def verify_workbook_formulas(filepath: str) -> dict:
         'sources_uses_formulas': {},
         'operating_model_formulas': {},
         'debt_schedule_formulas': {},
+        'returns_formulas': {},
         'named_ranges': {}
     }
 
@@ -1517,6 +1772,15 @@ def verify_workbook_formulas(filepath: str) -> dict:
                     cell_ref = f"{get_column_letter(cell.column)}{cell.row}"
                     result['debt_schedule_formulas'][cell_ref] = cell.value
 
+    # Check Returns tab
+    if 'Returns' in wb.sheetnames:
+        ws = wb['Returns']
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
+                    cell_ref = f"{get_column_letter(cell.column)}{cell.row}"
+                    result['returns_formulas'][cell_ref] = cell.value
+
     return result
 
 
@@ -1540,6 +1804,10 @@ def print_verification_report(verification: dict):
     for cell, formula in verification['sources_uses_formulas'].items():
         print(f"  {cell}: {formula}")
 
+    print(f"\n--- Returns Tab Formulas ---")
+    for cell, formula in verification.get('returns_formulas', {}).items():
+        print(f"  {cell}: {formula}")
+
     # Key formulas to verify
     print(f"\n--- KEY FORMULAS TO VERIFY ---")
     su_formulas = verification['sources_uses_formulas']
@@ -1552,6 +1820,11 @@ def print_verification_report(verification: dict):
     print("  Sponsor Equity = Total Uses - New Debt")
     print("  Total Sources = New Debt + Sponsor Equity")
     print("  Balance Check = Total Sources - Total Uses (should = 0)")
+    print("\nReturns logic:")
+    print("  Exit EV = Exit Year EBITDA × Exit Multiple")
+    print("  Equity at Exit = Exit EV - Ending Debt")
+    print("  IRR = XIRR of cash flows (negative equity at entry, positive at exit)")
+    print("  MOIC = Equity at Exit / Sponsor Equity")
 
 
 def evaluate_model_values(summary: dict, validation: dict) -> dict:
@@ -2382,6 +2655,12 @@ if __name__ == "__main__":
             col = cell[0]
             if col in ['C', 'G']:
                 print(f"  {cell}: {formula}")
+
+        # Print Returns tab formulas
+        print(f"\nKey formula strings from Returns tab:")
+        returns_formulas = verification.get('returns_formulas', {})
+        for cell, formula in sorted(returns_formulas.items()):
+            print(f"  {cell}: {formula}")
 
         # Print named ranges being used
         print(f"\nNamed ranges used:")
