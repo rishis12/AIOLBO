@@ -1586,6 +1586,284 @@ def build_returns_tab(wb: Workbook, summary: dict, sources_uses_refs: dict,
 
 
 # =============================================================================
+# SENSITIVITY TAB BUILDER
+# =============================================================================
+
+# Base case highlight fill (light green)
+BASE_CASE_FILL = PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid')
+
+
+def build_sensitivity_tab(wb: Workbook, summary: dict, sources_uses_refs: dict,
+                          op_model_refs: dict, debt_schedule_refs: dict,
+                          returns_refs: dict) -> dict:
+    """
+    Build the Sensitivity tab with Entry Multiple x Exit Multiple grids.
+
+    Creates two 5x5 grids showing MOIC and IRR for different combinations of
+    Entry and Exit multiples, centered on the base case assumptions.
+
+    Key design choices:
+    - NO Excel Data Tables (unreliable cross-platform)
+    - Each cell contains a fully self-contained formula
+    - All cross-sheet references are DIRECT cell references (no named ranges)
+    - Uses simplified IRR: (ExitEquity/SponsorEquity)^(1/ExitYear)-1
+
+    For each (Entry Multiple, Exit Multiple) combination:
+    - Sponsor Equity = (EntryEBITDA × EntryMult) × (1 + TxnFee%) - NewDebt
+    - Exit Equity = (ExitYearEBITDA × ExitMult) - ExitDebt
+    - MOIC = Exit Equity / Sponsor Equity
+    - IRR = MOIC^(1/ExitYear) - 1
+
+    Note: New Debt and Exit Debt are fixed (based on Leverage Multiple and the
+    original deal's FCF trajectory), so they reference the actual Sources & Uses
+    and Debt Schedule tabs.
+    """
+    ws = wb.create_sheet("Sensitivity", 5)
+
+    exit_year = op_model_refs['exit_year']
+    ebitda_row = op_model_refs['ebitda_row']
+    ending_balance_row = debt_schedule_refs['ending_balance_row']
+    debt_row = sources_uses_refs['debt_row']
+
+    # Exit year column in Operating Model / Debt Schedule
+    exit_col = get_column_letter(2 + exit_year)
+
+    # Column widths
+    ws.column_dimensions['A'].width = 3
+    ws.column_dimensions['B'].width = 22
+    for i in range(5):  # 5 columns for the grid
+        col_letter = get_column_letter(3 + i)
+        ws.column_dimensions[col_letter].width = 14
+
+    # Gap column between MOIC and IRR grids
+    ws.column_dimensions['H'].width = 5
+
+    # IRR grid columns
+    ws.column_dimensions['I'].width = 22
+    for i in range(5):
+        col_letter = get_column_letter(10 + i)
+        ws.column_dimensions[col_letter].width = 14
+
+    current_row = 1
+
+    # ==========================================================================
+    # SECTION HEADER
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="SENSITIVITY ANALYSIS")
+    ws.cell(row=current_row, column=2).font = SECTION_HEADER_FONT
+    ws.cell(row=current_row, column=2).fill = SECTION_HEADER_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=7)
+
+    ws.cell(row=current_row, column=9, value="SENSITIVITY ANALYSIS")
+    ws.cell(row=current_row, column=9).font = SECTION_HEADER_FONT
+    ws.cell(row=current_row, column=9).fill = SECTION_HEADER_FILL
+    ws.merge_cells(start_row=current_row, start_column=9, end_row=current_row, end_column=14)
+    current_row += 2
+
+    # ==========================================================================
+    # GRID LABELS
+    # ==========================================================================
+
+    # MOIC grid label
+    ws.cell(row=current_row, column=2, value="MOIC").font = BLACK_FONT_BOLD
+    # IRR grid label
+    ws.cell(row=current_row, column=9, value="IRR").font = BLACK_FONT_BOLD
+    current_row += 1
+
+    # Sub-labels
+    ws.cell(row=current_row, column=2, value="Exit Multiple →").font = BLACK_FONT
+    ws.cell(row=current_row, column=9, value="Exit Multiple →").font = BLACK_FONT
+
+    # ==========================================================================
+    # BUILD SENSITIVITY GRIDS
+    # ==========================================================================
+
+    # The grid will be:
+    # - Rows: Entry Multiple variations (5 values: base-1, base-0.5, base, base+0.5, base+1)
+    # - Columns: Exit Multiple variations (same pattern)
+    # - Center cell = base case (should match Returns tab)
+
+    # Multiple step size: 0.5x increments
+    # Grid offsets from base case: [-1.0, -0.5, 0, +0.5, +1.0]
+    offsets = [-1.0, -0.5, 0.0, 0.5, 1.0]
+
+    # Row where grid starts (after labels)
+    grid_start_row = current_row + 1
+
+    # Column header row (Exit Multiple values)
+    header_row = grid_start_row
+    for col_idx, offset in enumerate(offsets):
+        # MOIC grid header
+        moic_col = 3 + col_idx
+        cell = ws.cell(row=header_row, column=moic_col)
+        # Formula: base Exit Multiple + offset
+        # Exit Multiple is at 'Assumptions'!$C$39
+        if offset == 0:
+            cell.value = "='Assumptions'!$C$39"
+        elif offset > 0:
+            cell.value = f"='Assumptions'!$C$39+{offset}"
+        else:
+            cell.value = f"='Assumptions'!$C$39{offset}"  # offset is negative, so minus sign automatic
+        cell.font = BLACK_FONT_BOLD
+        cell.number_format = MULTIPLE_FORMAT
+        cell.alignment = CENTER_ALIGN
+
+        # IRR grid header (same values)
+        irr_col = 10 + col_idx
+        cell = ws.cell(row=header_row, column=irr_col)
+        if offset == 0:
+            cell.value = "='Assumptions'!$C$39"
+        elif offset > 0:
+            cell.value = f"='Assumptions'!$C$39+{offset}"
+        else:
+            cell.value = f"='Assumptions'!$C$39{offset}"
+        cell.font = BLACK_FONT_BOLD
+        cell.number_format = MULTIPLE_FORMAT
+        cell.alignment = CENTER_ALIGN
+
+    # Row labels column (Entry Multiple values) and grid cells
+    for row_idx, entry_offset in enumerate(offsets):
+        data_row = grid_start_row + 1 + row_idx
+
+        # Row label for MOIC grid (Entry Multiple value)
+        label_cell = ws.cell(row=data_row, column=2)
+        if entry_offset == 0:
+            label_cell.value = "='Assumptions'!$C$30"
+        elif entry_offset > 0:
+            label_cell.value = f"='Assumptions'!$C$30+{entry_offset}"
+        else:
+            label_cell.value = f"='Assumptions'!$C$30{entry_offset}"
+        label_cell.font = BLACK_FONT_BOLD
+        label_cell.number_format = MULTIPLE_FORMAT
+        label_cell.alignment = RIGHT_ALIGN
+
+        # Row label for IRR grid (Entry Multiple value)
+        irr_label_cell = ws.cell(row=data_row, column=9)
+        if entry_offset == 0:
+            irr_label_cell.value = "='Assumptions'!$C$30"
+        elif entry_offset > 0:
+            irr_label_cell.value = f"='Assumptions'!$C$30+{entry_offset}"
+        else:
+            irr_label_cell.value = f"='Assumptions'!$C$30{entry_offset}"
+        irr_label_cell.font = BLACK_FONT_BOLD
+        irr_label_cell.number_format = MULTIPLE_FORMAT
+        irr_label_cell.alignment = RIGHT_ALIGN
+
+        # Fill in grid cells for this row
+        for col_idx, exit_offset in enumerate(offsets):
+            moic_col = 3 + col_idx
+            irr_col = 10 + col_idx
+
+            # Build the Entry Multiple expression for this cell
+            if entry_offset == 0:
+                entry_mult_expr = "'Assumptions'!$C$30"
+            elif entry_offset > 0:
+                entry_mult_expr = f"('Assumptions'!$C$30+{entry_offset})"
+            else:
+                entry_mult_expr = f"('Assumptions'!$C$30{entry_offset})"
+
+            # Build the Exit Multiple expression for this cell
+            if exit_offset == 0:
+                exit_mult_expr = "'Assumptions'!$C$39"
+            elif exit_offset > 0:
+                exit_mult_expr = f"('Assumptions'!$C$39+{exit_offset})"
+            else:
+                exit_mult_expr = f"('Assumptions'!$C$39{exit_offset})"
+
+            # ============================================================
+            # MOIC Formula
+            # ============================================================
+            # MOIC = Exit Equity / Sponsor Equity
+            #
+            # Sponsor Equity = (EntryEBITDA × EntryMult) × (1 + TxnFee%) - NewDebt
+            # Exit Equity = (ExitYearEBITDA × ExitMult) - ExitDebt
+            #
+            # Cell references:
+            # - EntryEBITDA: 'Assumptions'!$C$18
+            # - TxnFee%: 'Assumptions'!$C$40
+            # - NewDebt: 'Sources & Uses'!$C${debt_row}
+            # - ExitYearEBITDA: 'Operating Model'!{exit_col}${ebitda_row}
+            # - ExitDebt: 'Debt Schedule'!{exit_col}${ending_balance_row}
+
+            sponsor_equity_formula = (
+                f"('Assumptions'!$C$18*{entry_mult_expr})*(1+'Assumptions'!$C$40)"
+                f"-'Sources & Uses'!$C${debt_row}"
+            )
+
+            exit_equity_formula = (
+                f"('Operating Model'!{exit_col}${ebitda_row}*{exit_mult_expr})"
+                f"-'Debt Schedule'!{exit_col}${ending_balance_row}"
+            )
+
+            moic_formula = f"=IF({sponsor_equity_formula}<=0,0,({exit_equity_formula})/({sponsor_equity_formula}))"
+
+            moic_cell = ws.cell(row=data_row, column=moic_col)
+            moic_cell.value = moic_formula
+            moic_cell.font = BLACK_FONT
+            moic_cell.number_format = MULTIPLE_FORMAT
+            moic_cell.alignment = CENTER_ALIGN
+
+            # Highlight base case (center cell where both offsets are 0)
+            if entry_offset == 0 and exit_offset == 0:
+                moic_cell.fill = BASE_CASE_FILL
+                moic_cell.font = BLACK_FONT_BOLD
+
+            # ============================================================
+            # IRR Formula
+            # ============================================================
+            # IRR = MOIC^(1/ExitYear) - 1
+            # Since no interim distributions, this simplified formula works
+            #
+            # ExitYear: 'Assumptions'!$C$38
+
+            irr_formula = (
+                f"=IF({sponsor_equity_formula}<=0,0,"
+                f"(({exit_equity_formula})/({sponsor_equity_formula}))^(1/'Assumptions'!$C$38)-1)"
+            )
+
+            irr_cell = ws.cell(row=data_row, column=irr_col)
+            irr_cell.value = irr_formula
+            irr_cell.font = BLACK_FONT
+            irr_cell.number_format = PERCENT_FORMAT
+            irr_cell.alignment = CENTER_ALIGN
+
+            # Highlight base case
+            if entry_offset == 0 and exit_offset == 0:
+                irr_cell.fill = BASE_CASE_FILL
+                irr_cell.font = BLACK_FONT_BOLD
+
+    # Update current_row past the grid
+    current_row = grid_start_row + 1 + len(offsets) + 2
+
+    # ==========================================================================
+    # LEGEND / NOTES
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="Notes:").font = BLACK_FONT_BOLD
+    current_row += 1
+
+    ws.cell(row=current_row, column=2,
+            value="• Green highlighted cell = Base Case (matches Returns tab)").font = BLACK_FONT
+    current_row += 1
+
+    ws.cell(row=current_row, column=2,
+            value="• Entry/Exit Multiple steps: ±0.5x, ±1.0x from base case").font = BLACK_FONT
+    current_row += 1
+
+    ws.cell(row=current_row, column=2,
+            value="• IRR uses simplified formula: MOIC^(1/Years)-1 (no interim distributions)").font = BLACK_FONT
+    current_row += 1
+
+    # Return refs for potential future use
+    return {
+        'grid_start_row': grid_start_row,
+        'moic_start_col': 3,
+        'irr_start_col': 10,
+    }
+
+
+# =============================================================================
 # WIRE UP INTEREST EXPENSE (after Debt Schedule is built)
 # =============================================================================
 
@@ -1685,6 +1963,9 @@ def generate_workbook(validated_summary: dict, output_dir: str = None) -> str:
 
     # Build Returns tab
     returns_refs = build_returns_tab(wb, summary, su_refs, op_model_refs, debt_schedule_refs)
+
+    # Build Sensitivity tab
+    sensitivity_refs = build_sensitivity_tab(wb, summary, su_refs, op_model_refs, debt_schedule_refs, returns_refs)
 
     # Generate filename
     ticker = summary.get('ticker', 'UNKNOWN')
