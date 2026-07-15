@@ -11,7 +11,7 @@ A tool that generates leveraged buyout (LBO) analysis for public companies — p
 ## Core pipeline
 
 1. User enters a ticker.
-2. **Data retrieval layer** fetches financials from Financial Modeling Prep (FMP).
+2. **Data retrieval layer** fetches financials from SEC EDGAR (primary) and Twelve Data (current price only).
 3. **Validator** checks data completeness (hard requirements / soft requirements / disqualifying conditions) and surfaces missing fields to the user directly (e.g. "these key fields are missing").
 4. User can gap-fill missing fields or accept defaults; user can preview the pre-filled Assumptions tab before generating.
 5. **Excel model** is generated (openpyxl) — five tabs, formula-driven, base case.
@@ -21,20 +21,59 @@ A tool that generates leveraged buyout (LBO) analysis for public companies — p
 
 ## Data layer
 
-**Source: Financial Modeling Prep (FMP)**, chosen because it covers every required field through four endpoints under one provider/API key:
+### Primary source: SEC EDGAR (`data.sec.gov`)
 
-| Field | Endpoint |
-|---|---|
-| Share price, market cap, shares outstanding, sector/industry | `/stable/profile` |
-| Revenue, operating income, D&A, EBITDA (historical) | `/stable/income-statement` |
-| Total debt, cash & equivalents | `/stable/balance-sheet-statement` |
-| Capex, D&A (cross-check) | `/stable/cash-flow-statement` |
+**Why SEC EDGAR over FMP:** Financial Modeling Prep (FMP) was initially tested but abandoned — their free tier paywalls financial statement data (HTTP 402 errors) for anything below large-cap, which broke the "any public company" scope. SEC EDGAR has no paywall tiers — every filer's data is equally accessible, free, no API key required.
 
-**EBITDA is calculated, not trusted from FMP's reported field** — `Operating Income + D&A`, using values already present in the income statement response, so the definition stays consistent and auditable regardless of provider.
+**What SEC EDGAR provides:**
+- Revenue, operating income, D&A, total debt (current + noncurrent), cash, capex, shares outstanding, SIC code
+- Via the CompanyFacts endpoint: `data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json`
+- Ticker → CIK resolution via SEC's `company_tickers.json` (cached locally)
+- Rate limit: 10 requests/second
+- Requires a descriptive User-Agent header (app name + contact email, read from `SEC_CONTACT_EMAIL` env var)
 
-**SEC EDGAR** (`data.sec.gov`, free, no API key, XBRL CompanyFacts endpoint) was evaluated as a primary or cross-check source. Deferred to a documented **v2 fallback** — used only if FMP's free-tier coverage or rate limits become a problem for a given ticker, since parsing/normalizing SEC's raw XBRL tags across companies is meaningfully more engineering effort than FMP's clean JSON.
+**EBITDA is calculated, not sourced as a single field** — `Operating Income + D&A`, for consistency across companies regardless of how they report.
 
-**Security note:** the FMP API key must live server-side only (environment variable), never in client-side code or committed to the repo. Rotate immediately if a key is ever exposed in a chat, doc, or commit.
+### Secondary source: Twelve Data (current price only)
+
+SEC EDGAR does **not** provide current share price or market cap (not filed data). Twelve Data fills this single gap:
+- Free tier (~800 calls/day), API key from `TWELVE_DATA_API_KEY` env var
+- Used **only** for current share price — not a full second data provider
+
+### XBRL tag inconsistency (known, tested)
+
+Unlike FMP's standardized fields, SEC EDGAR uses raw XBRL tags that vary across filers — different companies use different GAAP concept names for the same line item. The fetch layer uses **fallback tag lists** per concept, confirmed via live testing across 20 tickers spanning large/mid/small-cap, debt-heavy, excluded-sector, recent-IPO, and edge-case companies:
+
+| Concept | Fallback tags (tried in order) |
+|---------|-------------------------------|
+| Revenue | `Revenues`, `RevenueFromContractWithCustomerExcludingAssessedTax` (some companies report both; merged) |
+| D&A | `DepreciationDepletionAndAmortization`, `DepreciationAndAmortization`, or — if neither present — sum of `Depreciation` + `AmortizationOfIntangibleAssets` |
+| Total debt | `LongTermDebtNoncurrent` + `LongTermDebtCurrent` (summed), falling back to `LongTermDebt` or `DebtLongtermAndShorttermCombinedAmount` |
+| Cash | `CashAndCashEquivalentsAtCarryingValue` |
+| Capex | `PaymentsToAcquirePropertyPlantAndEquipment` |
+| Shares outstanding | `dei:EntityCommonStockSharesOutstanding` |
+
+### Sector exclusion (SIC-based)
+
+Exclusion is based on SIC code (from SEC submissions endpoint), confirmed via testing to correctly flag:
+- Banks (SIC 6000-6199) — tested: JPM
+- Insurance (SIC 6300-6411) — tested: AIG
+- REITs (SIC 6798) — tested: O
+- Utilities (SIC 4900-4999) — tested: DUK
+
+These sectors also show missing `operating_income`/`capex`/`D&A` fields because they genuinely don't report an EBITDA-style operating structure, reinforcing why they're excluded rather than just defaulted.
+
+### Edge cases (tested)
+
+**No 10-K filings:** Companies with no 10-K filings (e.g., recent foreign private issuers that file Form 20-F under IFRS, like ARM) return zero fiscal years of data. This is treated as a clean disqualifying condition in the validator, not a partial-data case — 20-F/IFRS support is out of scope for v1.
+
+**Total debt missing:** Treated as a soft requirement — if missing after all fallback tags, default to $0 with a visible flag rather than disqualifying. Genuinely low/no-debt companies are a normal, valid case. Testing confirmed debt tags reliably return plausible non-zero values for debt-heavy companies (CCL: $27B, AAL: $5B, IRM: $14B), so a missing result elsewhere is more likely a true zero than a tag gap.
+
+**Ticker normalization:** Tickers with a "." (e.g., `BRK.B`) must be converted to "-" format (`BRK-B`) before SEC lookup, with fallback to the original format if that fails.
+
+### Security note
+
+API keys (`SEC_CONTACT_EMAIL`, `TWELVE_DATA_API_KEY`) must live server-side only (environment variables), never in client-side code or committed to the repo.
 
 ## Validator
 
@@ -82,7 +121,8 @@ Output: what changed, stated plainly. Commentary is intentionally minimal — st
 
 ## Open items / not yet decided
 
-- Exact balance sheet and cash flow statement field names from FMP (confirm via live test call before building the fetch layer's field mapping).
+- **Validator not yet built** — this is the next step, informed by the tested missing-field patterns from the 20-ticker SEC EDGAR test.
+- **POOL still missing `ltd_current` field** after all fallbacks — needs manual inspection of raw CompanyFacts JSON (low priority, soft requirement).
 - Backend hosting choice.
 - Rate limiting implementation.
 - Whether debt schedule circularity is handled via Excel iterative calc or a simplified approximation in v1. 
