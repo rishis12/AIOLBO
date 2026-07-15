@@ -1,0 +1,364 @@
+======================================================================
+AIO LBO EXCEL GENERATOR TEST
+======================================================================
+
+Test tickers:
+  AAPL - Large-cap, clean data
+  FIZZ - Small-cap, debt likely defaulted to $0
+  CCL  - Debt-heavy, should have real debt figures
+
+[MOCK MODE] Using mock data for testing
+
+======================================================================
+PROCESSING: AAPL
+======================================================================
+
+[1/3] Loading mock data...
+  Loaded mock data for Apple Inc.
+  Status: PASS
+[2/3] Generating Excel workbook...
+Generated workbook: C:\Users\kilef\OneDrive\Desktop\pe\AIOLBO\output\LBO_AAPL_20260714_215456.xlsx
+
+--- Verifying formulas ---
+
+Key formula strings from Sources & Uses:
+  C3: =EntryEBITDA*EntryMultiple
+  C4: =C3*TransactionFeePct
+  C6: =C3+C4
+  C11: =EntryEBITDA*LeverageMultiple
+  C12: =C6-C11
+  C14: =C11+C12
+  C18: =C14-C6
+
+Key formula strings from Operating Model (Interest Expense row):
+  C10: ='Debt Schedule'!C7
+  G10: ='Debt Schedule'!G7
+
+Key formula strings from Debt Schedule (Year 1 & Year 5):
+  C10: =MAX(0,MIN(C9-C8,C6-C8))
+  C11: =C6-C8-C10
+  C14: =IF('Operating Model'!C7=0,0,C11/'Operating Model'!C7)
+  C6: =NewDebtRaised
+  C7: =C6*InterestRate
+  C8: =NewDebtRaised*AmortizationPct
+  C9: ='Operating Model'!C20
+  G10: =MAX(0,MIN(G9-G8,G6-G8))
+  G11: =G6-G8-G10
+  G14: =IF('Operating Model'!G7=0,0,G11/'Operating Model'!G7)
+  G6: =F11
+  G7: =G6*InterestRate
+  G8: =NewDebtRaised*AmortizationPct
+  G9: ='Operating Model'!G20
+
+Named ranges used:
+  EntryRevenue: 'Assumptions'!$C$15
+  EntryEBITDA: 'Assumptions'!$C$18
+  EntryMultiple: 'Assumptions'!$C$30
+  LeverageMultiple: 'Assumptions'!$C$32
+  TransactionFeePct: 'Assumptions'!$C$40
+  TotalUses: 'Sources & Uses'!C6
+  NewDebtRaised: 'Sources & Uses'!C11
+  SponsorEquity: 'Sources & Uses'!C12
+  TotalSources: 'Sources & Uses'!C14
+  BalanceCheck: 'Sources & Uses'!C18
+  ExitEBITDA: 'Operating Model'!G7
+  RevenueGrowthRate: 'Assumptions'!$C$28
+  EBITDAMargin: 'Assumptions'!$C$29
+  DAPct: 'Assumptions'!$C$36
+  CapExPct: 'Assumptions'!$C$35
+  NWCPct: 'Assumptions'!$C$37
+  TaxRate: 'Assumptions'!$C$34
+  InterestRate: 'Assumptions'!$C$33
+  AmortizationPct: 'Assumptions'!$C$41
+  ExitDebtBalance: 'Debt Schedule'!G11
+
+--- Sources & Uses Computed Values ---
+
+  Computed Values for AAPL (FY2024):
+  --------------------------------------------------
+  Entry EBITDA:      $125.50B
+  Entry Multiple:    8.0x
+  Leverage Multiple: 5.5x
+  Transaction Fee %: 2.0%
+  --------------------------------------------------
+  USES:
+    Purchase EV:     $1,004.01B
+    Transaction Fees:$20.08B
+    Total Uses:      $1,024.09B
+  --------------------------------------------------
+  SOURCES:
+    New Debt:        $690.26B
+    Sponsor Equity:  $333.83B
+    Total Sources:   $1,024.09B
+  --------------------------------------------------
+  Balance Check:     $0 [OK]
+
+--- Full Integrated Model (Operating Model + Debt Schedule) ---
+
+  Full Integrated Model for AAPL:
+  Entry FY: 2024
+  New Debt Raised: $690.26B
+  Interest Rate: 8.0%
+  Mandatory Amort: 1.0%/year
+
+  --- OPERATING MODEL ---
+  Metric                      Year 1        Year 5
+  ------------------------------------------------
+  Revenue                   $398.22B      $464.02B
+  EBITDA                    $130.39B      $151.94B
+  Interest                   $55.22B       $36.29B
+  Net Income                 $47.65B       $76.57B
+  FCF                        $48.94B       $78.07B
+
+  --- DEBT SCHEDULE ---
+  Metric                      Year 1        Year 5
+  ------------------------------------------------
+  Beginning Balance         $690.26B      $453.61B
+  Interest Expense           $55.22B       $36.29B
+  Mandatory Amort             $6.90B        $6.90B
+  Optional Paydown           $42.04B       $71.17B
+  Ending Balance            $641.32B      $375.55B
+
+  Leverage Ratio Year 1: 4.9x
+  Leverage Ratio Year 5: 2.5x
+  Total Debt Paydown: $314.71B (45.6% of original)
+
+======================================================================
+PROCESSING: FIZZ
+======================================================================
+
+[1/3] Loading mock data...
+  Loaded mock data for National Beverage Corp.
+  Status: DEGRADED
+  Defaults applied:
+    - Total debt will default to $0 — verify this is accurate before proceeding.
+[2/3] Generating Excel workbook...
+Generated workbook: C:\Users\kilef\OneDrive\Desktop\pe\AIOLBO\output\LBO_FIZZ_20260714_215456.xlsx
+
+--- Verifying formulas ---
+
+Key formula strings from Sources & Uses:
+  C3: =EntryEBITDA*EntryMultiple
+  C4: =C3*TransactionFeePct
+  C6: =C3+C4
+  C11: =EntryEBITDA*LeverageMultiple
+  C12: =C6-C11
+  C14: =C11+C12
+  C18: =C14-C6
+
+Key formula strings from Operating Model (Interest Expense row):
+  C10: ='Debt Schedule'!C7
+  G10: ='Debt Schedule'!G7
+
+Key formula strings from Debt Schedule (Year 1 & Year 5):
+  C10: =MAX(0,MIN(C9-C8,C6-C8))
+  C11: =C6-C8-C10
+  C14: =IF('Operating Model'!C7=0,0,C11/'Operating Model'!C7)
+  C6: =NewDebtRaised
+  C7: =C6*InterestRate
+  C8: =NewDebtRaised*AmortizationPct
+  C9: ='Operating Model'!C20
+  G10: =MAX(0,MIN(G9-G8,G6-G8))
+  G11: =G6-G8-G10
+  G14: =IF('Operating Model'!G7=0,0,G11/'Operating Model'!G7)
+  G6: =F11
+  G7: =G6*InterestRate
+  G8: =NewDebtRaised*AmortizationPct
+  G9: ='Operating Model'!G20
+
+Named ranges used:
+  EntryRevenue: 'Assumptions'!$C$15
+  EntryEBITDA: 'Assumptions'!$C$18
+  EntryMultiple: 'Assumptions'!$C$30
+  LeverageMultiple: 'Assumptions'!$C$32
+  TransactionFeePct: 'Assumptions'!$C$40
+  TotalUses: 'Sources & Uses'!C6
+  NewDebtRaised: 'Sources & Uses'!C11
+  SponsorEquity: 'Sources & Uses'!C12
+  TotalSources: 'Sources & Uses'!C14
+  BalanceCheck: 'Sources & Uses'!C18
+  ExitEBITDA: 'Operating Model'!G7
+  RevenueGrowthRate: 'Assumptions'!$C$28
+  EBITDAMargin: 'Assumptions'!$C$29
+  DAPct: 'Assumptions'!$C$36
+  CapExPct: 'Assumptions'!$C$35
+  NWCPct: 'Assumptions'!$C$37
+  TaxRate: 'Assumptions'!$C$34
+  InterestRate: 'Assumptions'!$C$33
+  AmortizationPct: 'Assumptions'!$C$41
+  ExitDebtBalance: 'Debt Schedule'!G11
+
+--- Sources & Uses Computed Values ---
+
+  Computed Values for FIZZ (FY2024):
+  --------------------------------------------------
+  Entry EBITDA:      $206.70M
+  Entry Multiple:    8.0x
+  Leverage Multiple: 5.5x
+  Transaction Fee %: 2.0%
+  --------------------------------------------------
+  USES:
+    Purchase EV:     $1.65B
+    Transaction Fees:$33.07M
+    Total Uses:      $1.69B
+  --------------------------------------------------
+  SOURCES:
+    New Debt:        $1.14B
+    Sponsor Equity:  $549.82M
+    Total Sources:   $1.69B
+  --------------------------------------------------
+  Balance Check:     $0 [OK]
+
+--- Full Integrated Model (Operating Model + Debt Schedule) ---
+
+  Full Integrated Model for FIZZ:
+  Entry FY: 2024
+  New Debt Raised: $1.14B
+  Interest Rate: 8.0%
+  Mandatory Amort: 1.0%/year
+
+  --- OPERATING MODEL ---
+  Metric                      Year 1        Year 5
+  ------------------------------------------------
+  Revenue                     $1.23B        $1.44B
+  EBITDA                    $214.98M      $251.54M
+  Interest                   $90.95M       $62.74M
+  Net Income                 $67.67M      $111.94M
+  FCF                        $72.35M      $117.41M
+
+  --- DEBT SCHEDULE ---
+  Metric                      Year 1        Year 5
+  ------------------------------------------------
+  Beginning Balance           $1.14B      $784.27M
+  Interest Expense           $90.95M       $62.74M
+  Mandatory Amort            $11.37M       $11.37M
+  Optional Paydown           $60.98M      $106.04M
+  Ending Balance              $1.06B      $666.86M
+
+  Leverage Ratio Year 1: 5.0x
+  Leverage Ratio Year 5: 2.7x
+  Total Debt Paydown: $469.99M (41.3% of original)
+
+======================================================================
+PROCESSING: CCL
+======================================================================
+
+[1/3] Loading mock data...
+  Loaded mock data for Carnival Corporation
+  Status: PASS
+[2/3] Generating Excel workbook...
+Generated workbook: C:\Users\kilef\OneDrive\Desktop\pe\AIOLBO\output\LBO_CCL_20260714_215456.xlsx
+
+--- Verifying formulas ---
+
+Key formula strings from Sources & Uses:
+  C3: =EntryEBITDA*EntryMultiple
+  C4: =C3*TransactionFeePct
+  C6: =C3+C4
+  C11: =EntryEBITDA*LeverageMultiple
+  C12: =C6-C11
+  C14: =C11+C12
+  C18: =C14-C6
+
+Key formula strings from Operating Model (Interest Expense row):
+  C10: ='Debt Schedule'!C7
+  G10: ='Debt Schedule'!G7
+
+Key formula strings from Debt Schedule (Year 1 & Year 5):
+  C10: =MAX(0,MIN(C9-C8,C6-C8))
+  C11: =C6-C8-C10
+  C14: =IF('Operating Model'!C7=0,0,C11/'Operating Model'!C7)
+  C6: =NewDebtRaised
+  C7: =C6*InterestRate
+  C8: =NewDebtRaised*AmortizationPct
+  C9: ='Operating Model'!C20
+  G10: =MAX(0,MIN(G9-G8,G6-G8))
+  G11: =G6-G8-G10
+  G14: =IF('Operating Model'!G7=0,0,G11/'Operating Model'!G7)
+  G6: =F11
+  G7: =G6*InterestRate
+  G8: =NewDebtRaised*AmortizationPct
+  G9: ='Operating Model'!G20
+
+Named ranges used:
+  EntryRevenue: 'Assumptions'!$C$15
+  EntryEBITDA: 'Assumptions'!$C$18
+  EntryMultiple: 'Assumptions'!$C$30
+  LeverageMultiple: 'Assumptions'!$C$32
+  TransactionFeePct: 'Assumptions'!$C$40
+  TotalUses: 'Sources & Uses'!C6
+  NewDebtRaised: 'Sources & Uses'!C11
+  SponsorEquity: 'Sources & Uses'!C12
+  TotalSources: 'Sources & Uses'!C14
+  BalanceCheck: 'Sources & Uses'!C18
+  ExitEBITDA: 'Operating Model'!G7
+  RevenueGrowthRate: 'Assumptions'!$C$28
+  EBITDAMargin: 'Assumptions'!$C$29
+  DAPct: 'Assumptions'!$C$36
+  CapExPct: 'Assumptions'!$C$35
+  NWCPct: 'Assumptions'!$C$37
+  TaxRate: 'Assumptions'!$C$34
+  InterestRate: 'Assumptions'!$C$33
+  AmortizationPct: 'Assumptions'!$C$41
+  ExitDebtBalance: 'Debt Schedule'!G11
+
+--- Sources & Uses Computed Values ---
+
+  Computed Values for CCL (FY2024):
+  --------------------------------------------------
+  Entry EBITDA:      $6.07B
+  Entry Multiple:    8.0x
+  Leverage Multiple: 5.5x
+  Transaction Fee %: 2.0%
+  --------------------------------------------------
+  USES:
+    Purchase EV:     $48.52B
+    Transaction Fees:$970.40M
+    Total Uses:      $49.49B
+  --------------------------------------------------
+  SOURCES:
+    New Debt:        $33.36B
+    Sponsor Equity:  $16.13B
+    Total Sources:   $49.49B
+  --------------------------------------------------
+  Balance Check:     $0 [OK]
+
+--- Full Integrated Model (Operating Model + Debt Schedule) ---
+
+  Full Integrated Model for CCL:
+  Entry FY: 2024
+  New Debt Raised: $33.36B
+  Interest Rate: 8.0%
+  Mandatory Amort: 1.0%/year
+
+  --- OPERATING MODEL ---
+  Metric                      Year 1        Year 5
+  ------------------------------------------------
+  Revenue                    $25.27B       $28.44B
+  EBITDA                      $6.25B        $7.03B
+  Interest                    $2.67B        $2.56B
+  Net Income                $520.76M      $917.38M
+  FCF                      $-921.24M     $-705.60M
+
+  --- DEBT SCHEDULE ---
+  Metric                      Year 1        Year 5
+  ------------------------------------------------
+  Beginning Balance          $33.36B       $32.02B
+  Interest Expense            $2.67B        $2.56B
+  Mandatory Amort           $333.57M      $333.57M
+  Optional Paydown                $0            $0
+  Ending Balance             $33.02B       $31.69B
+
+  Leverage Ratio Year 1: 5.3x
+  Leverage Ratio Year 5: 4.5x
+  Total Debt Paydown: $1.67B (5.0% of original)
+
+======================================================================
+TEST COMPLETE
+======================================================================
+
+Generated files are in: C:\Users\kilef\OneDrive\Desktop\pe\AIOLBO\output
+
+NOTE: openpyxl writes formulas as text. To see computed values,
+open the files in Excel or a compatible spreadsheet application.
+The Balance Check cell should show $0 if formulas are correct.

@@ -218,13 +218,13 @@ def build_assumptions_tab(wb: Workbook, summary: dict, validation_result: dict) 
 
     # Column widths
     ws.column_dimensions['A'].width = 3
-    ws.column_dimensions['B'].width = 35
-    ws.column_dimensions['C'].width = 18
-    ws.column_dimensions['D'].width = 18
-    ws.column_dimensions['E'].width = 18
-    ws.column_dimensions['F'].width = 18
-    ws.column_dimensions['G'].width = 18
-    ws.column_dimensions['H'].width = 18
+    ws.column_dimensions['B'].width = 38  # Wide enough for longest labels
+    ws.column_dimensions['C'].width = 22  # Wide enough for $X,XXX,XXX,XXX,XXX format
+    ws.column_dimensions['D'].width = 22
+    ws.column_dimensions['E'].width = 22
+    ws.column_dimensions['F'].width = 22
+    ws.column_dimensions['G'].width = 22
+    ws.column_dimensions['H'].width = 22
 
     # Track named ranges
     named_ranges = {}
@@ -659,9 +659,9 @@ def build_sources_uses_tab(wb: Workbook, named_ranges: dict):
 
     # Column widths
     ws.column_dimensions['A'].width = 3
-    ws.column_dimensions['B'].width = 35
-    ws.column_dimensions['C'].width = 20
-    ws.column_dimensions['D'].width = 15
+    ws.column_dimensions['B'].width = 38  # Wide enough for longest labels
+    ws.column_dimensions['C'].width = 22  # Wide enough for $X,XXX,XXX,XXX,XXX format
+    ws.column_dimensions['D'].width = 22
 
     current_row = 1
 
@@ -676,9 +676,10 @@ def build_sources_uses_tab(wb: Workbook, named_ranges: dict):
     current_row += 2
 
     # Purchase Enterprise Value = Entry EBITDA × Entry Multiple
+    # Use direct cell references instead of named ranges for cross-sheet reliability
     ws.cell(row=current_row, column=2, value="Purchase Enterprise Value").font = BLACK_FONT
     pev_cell = ws.cell(row=current_row, column=3)
-    pev_cell.value = "=EntryEBITDA*EntryMultiple"
+    pev_cell.value = "='Assumptions'!$C$18*'Assumptions'!$C$30"  # EntryEBITDA * EntryMultiple
     pev_cell.font = BLACK_FONT
     pev_cell.number_format = CURRENCY_FORMAT
     pev_row = current_row
@@ -687,7 +688,7 @@ def build_sources_uses_tab(wb: Workbook, named_ranges: dict):
     # Transaction Fees = Purchase EV × Fee %
     ws.cell(row=current_row, column=2, value="Transaction Fees").font = BLACK_FONT
     fees_cell = ws.cell(row=current_row, column=3)
-    fees_cell.value = f"=C{pev_row}*TransactionFeePct"
+    fees_cell.value = f"=C{pev_row}*'Assumptions'!$C$40"  # TransactionFeePct
     fees_cell.font = BLACK_FONT
     fees_cell.number_format = CURRENCY_FORMAT
     fees_row = current_row
@@ -721,9 +722,10 @@ def build_sources_uses_tab(wb: Workbook, named_ranges: dict):
     current_row += 2
 
     # New Debt Raised = Entry EBITDA × Leverage Multiple
+    # Use direct cell references instead of named ranges for cross-sheet reliability
     ws.cell(row=current_row, column=2, value="New Debt Raised").font = BLACK_FONT
     debt_cell = ws.cell(row=current_row, column=3)
-    debt_cell.value = "=EntryEBITDA*LeverageMultiple"
+    debt_cell.value = "='Assumptions'!$C$18*'Assumptions'!$C$32"  # EntryEBITDA * LeverageMultiple
     debt_cell.font = BLACK_FONT
     debt_cell.number_format = CURRENCY_FORMAT
     debt_row = current_row
@@ -834,12 +836,12 @@ def build_operating_model_tab(wb: Workbook, summary: dict, named_ranges: dict) -
 
     # Column widths
     ws.column_dimensions['A'].width = 3
-    ws.column_dimensions['B'].width = 35
+    ws.column_dimensions['B'].width = 38  # Wide enough for longest labels
 
-    # Year columns start at C
+    # Year columns start at C - set wide enough for $X,XXX,XXX,XXX,XXX format
     for i in range(exit_year):
         col_letter = get_column_letter(3 + i)
-        ws.column_dimensions[col_letter].width = 16
+        ws.column_dimensions[col_letter].width = 22
 
     current_row = 1
 
@@ -884,17 +886,12 @@ def build_operating_model_tab(wb: Workbook, summary: dict, named_ranges: dict) -
 
         if year == 1:
             # Year 1: Most recent FY Revenue × (1 + Growth Rate)
-            # Need to find where revenue is in Assumptions - it's in column C of the historical section
-            # We need a named range for Entry Revenue - let's reference the historical data
-            # Actually, we should create a named range for this in build_assumptions_tab
-            # For now, reference the cell directly using the most recent revenue
-            # The Entry EBITDA is at a known location, but Entry Revenue isn't named
-            # Let's use a formula that finds it: we'll create EntryRevenue named range
-            cell.value = "=EntryRevenue*(1+RevenueGrowthRate)"
+            # Use direct cell references instead of named ranges for cross-sheet reliability
+            cell.value = "='Assumptions'!$C$15*(1+'Assumptions'!$C$28)"  # EntryRevenue * (1+RevenueGrowthRate)
         else:
             # Year 2+: Prior year Revenue × (1 + Growth Rate)
             prev_col = get_column_letter(col - 1)
-            cell.value = f"={prev_col}{revenue_row}*(1+RevenueGrowthRate)"
+            cell.value = f"={prev_col}{revenue_row}*(1+'Assumptions'!$C$28)"  # RevenueGrowthRate
 
         cell.font = BLACK_FONT
         cell.number_format = CURRENCY_FORMAT
@@ -907,7 +904,7 @@ def build_operating_model_tab(wb: Workbook, summary: dict, named_ranges: dict) -
         col = 2 + year
         col_letter = get_column_letter(col)
         cell = ws.cell(row=current_row, column=col)
-        cell.value = f"={col_letter}{revenue_row}*EBITDAMargin"
+        cell.value = f"={col_letter}{revenue_row}*'Assumptions'!$C$29"  # EBITDAMargin
         cell.font = BLACK_FONT
         cell.number_format = CURRENCY_FORMAT
     current_row += 1
@@ -919,7 +916,7 @@ def build_operating_model_tab(wb: Workbook, summary: dict, named_ranges: dict) -
         col = 2 + year
         col_letter = get_column_letter(col)
         cell = ws.cell(row=current_row, column=col)
-        cell.value = f"={col_letter}{revenue_row}*DAPct"
+        cell.value = f"={col_letter}{revenue_row}*'Assumptions'!$C$36"  # DAPct
         cell.font = BLACK_FONT
         cell.number_format = CURRENCY_FORMAT
     current_row += 1
@@ -973,7 +970,7 @@ def build_operating_model_tab(wb: Workbook, summary: dict, named_ranges: dict) -
         col_letter = get_column_letter(col)
         cell = ws.cell(row=current_row, column=col)
         # MAX(0, Pre-Tax Income × TaxRate) - no negative taxes
-        cell.value = f"=MAX(0,{col_letter}{pretax_row}*TaxRate)"
+        cell.value = f"=MAX(0,{col_letter}{pretax_row}*'Assumptions'!$C$34)"  # TaxRate
         cell.font = BLACK_FONT
         cell.number_format = CURRENCY_FORMAT
     current_row += 1
@@ -1031,7 +1028,7 @@ def build_operating_model_tab(wb: Workbook, summary: dict, named_ranges: dict) -
         col = 2 + year
         col_letter = get_column_letter(col)
         cell = ws.cell(row=current_row, column=col)
-        cell.value = f"={col_letter}{revenue_row}*CapExPct"
+        cell.value = f"={col_letter}{revenue_row}*'Assumptions'!$C$35"  # CapExPct
         cell.font = BLACK_FONT
         cell.number_format = CURRENCY_FORMAT
     current_row += 1
@@ -1044,7 +1041,7 @@ def build_operating_model_tab(wb: Workbook, summary: dict, named_ranges: dict) -
         col_letter = get_column_letter(col)
         cell = ws.cell(row=current_row, column=col)
         # NWC change = Revenue × NWCPct (consumes cash when positive)
-        cell.value = f"={col_letter}{revenue_row}*NWCPct"
+        cell.value = f"={col_letter}{revenue_row}*'Assumptions'!$C$37"  # NWCPct
         cell.font = BLACK_FONT
         cell.number_format = CURRENCY_FORMAT
     current_row += 1
@@ -1126,6 +1123,264 @@ def build_operating_model_tab(wb: Workbook, summary: dict, named_ranges: dict) -
 
 
 # =============================================================================
+# DEBT SCHEDULE TAB BUILDER
+# =============================================================================
+
+def build_debt_schedule_tab(wb: Workbook, summary: dict, op_model_refs: dict) -> dict:
+    """
+    Build the Debt Schedule tab.
+
+    Projects debt balance, interest expense, mandatory amortization, and cash sweep
+    for each year from Year 1 to Exit Year.
+
+    Interest Expense is calculated on BEGINNING balance only (not average) to avoid
+    circular reference with Operating Model's FCF calculation. This is a disclosed
+    simplification that slightly overstates interest in heavy-paydown years.
+
+    Returns a dict with row references for use by other tabs.
+    """
+    ws = wb.create_sheet("Debt Schedule", 3)
+
+    exit_year = op_model_refs['exit_year']
+    fcf_row = op_model_refs['fcf_row']
+    ebitda_row = op_model_refs['ebitda_row']
+    year_start_col = op_model_refs['year_start_col']
+
+    # Get most recent fiscal year for calendar year labels
+    fiscal_years = summary.get('fiscal_years', {})
+    if fiscal_years:
+        most_recent_fy = max(fiscal_years.keys())
+    else:
+        most_recent_fy = 2024  # Fallback
+
+    # Column widths
+    ws.column_dimensions['A'].width = 3
+    ws.column_dimensions['B'].width = 38  # Wide enough for longest labels
+
+    # Year columns start at C - set wide enough for $X,XXX,XXX,XXX,XXX format
+    for i in range(exit_year):
+        col_letter = get_column_letter(3 + i)
+        ws.column_dimensions[col_letter].width = 22
+
+    current_row = 1
+
+    # ==========================================================================
+    # HEADER
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="DEBT SCHEDULE")
+    ws.cell(row=current_row, column=2).font = SECTION_HEADER_FONT
+    ws.cell(row=current_row, column=2).fill = SECTION_HEADER_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=2 + exit_year)
+    current_row += 2
+
+    # Year headers
+    ws.cell(row=current_row, column=2, value="").font = BLACK_FONT_BOLD
+    for year in range(1, exit_year + 1):
+        col = 2 + year  # Column C = Year 1, D = Year 2, etc.
+        calendar_year = most_recent_fy + year
+        cell = ws.cell(row=current_row, column=col)
+        cell.value = f"Year {year}\n(FY{calendar_year})"
+        cell.font = BLACK_FONT_BOLD
+        cell.alignment = Alignment(horizontal='center', wrap_text=True)
+    current_row += 2
+
+    # ==========================================================================
+    # DEBT PAYDOWN SECTION
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="Debt Paydown Schedule").font = SUBSECTION_FONT
+    ws.cell(row=current_row, column=2).fill = SUBSECTION_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=2 + exit_year)
+    current_row += 1
+
+    # --- Beginning Debt Balance ---
+    beginning_balance_row = current_row
+    ws.cell(row=current_row, column=2, value="Beginning Debt Balance").font = BLACK_FONT
+    for year in range(1, exit_year + 1):
+        col = 2 + year
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=current_row, column=col)
+
+        if year == 1:
+            # Year 1: Beginning balance = NewDebtRaised from Sources & Uses
+            # Use direct cell reference instead of named range for cross-sheet reliability
+            cell.value = "='Sources & Uses'!$C$11"  # NewDebtRaised
+        else:
+            # Year 2+: Prior year's Ending Debt Balance (same-sheet reference, OK as-is)
+            prev_col = get_column_letter(col - 1)
+            # ending_balance_row will be defined below, so we need to calculate it
+            # Ending balance row is: beginning + 5 rows down (interest, mandatory, cash avail, optional, ending)
+            ending_row = beginning_balance_row + 5
+            cell.value = f"={prev_col}{ending_row}"
+
+        cell.font = BLACK_FONT
+        cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # --- Interest Expense ---
+    interest_expense_row = current_row
+    ws.cell(row=current_row, column=2, value="Interest Expense").font = BLACK_FONT
+    for year in range(1, exit_year + 1):
+        col = 2 + year
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=current_row, column=col)
+        # Interest = Beginning Balance × InterestRate (on beginning balance only to avoid circularity)
+        # Use direct cell reference instead of named range for cross-sheet reliability
+        cell.value = f"={col_letter}{beginning_balance_row}*'Assumptions'!$C$33"  # InterestRate
+        cell.font = BLACK_FONT
+        cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # --- Mandatory Amortization ---
+    mandatory_amort_row = current_row
+    ws.cell(row=current_row, column=2, value="Mandatory Amortization").font = BLACK_FONT
+    for year in range(1, exit_year + 1):
+        col = 2 + year
+        cell = ws.cell(row=current_row, column=col)
+        # Mandatory = Original principal (NewDebtRaised) × MandatoryAmortPct
+        # This stays constant every year (based on original loan amount, not declining balance)
+        # Use direct cell references instead of named ranges for cross-sheet reliability
+        cell.value = "='Sources & Uses'!$C$11*'Assumptions'!$C$41"  # NewDebtRaised * AmortizationPct
+        cell.font = BLACK_FONT
+        cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # --- Cash Available for Sweep ---
+    cash_available_row = current_row
+    ws.cell(row=current_row, column=2, value="Cash Available for Sweep").font = BLACK_FONT
+    for year in range(1, exit_year + 1):
+        col = 2 + year
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=current_row, column=col)
+        # Pull FCF for Debt Paydown from Operating Model (same year column)
+        cell.value = f"='Operating Model'!{col_letter}{fcf_row}"
+        cell.font = BLACK_FONT
+        cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # --- Optional Paydown (Cash Sweep) ---
+    optional_paydown_row = current_row
+    ws.cell(row=current_row, column=2, value="Optional Paydown (Cash Sweep)").font = BLACK_FONT
+    for year in range(1, exit_year + 1):
+        col = 2 + year
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=current_row, column=col)
+        # Optional = MIN of:
+        #   (a) Cash Available - Mandatory Amortization (can't sweep more cash than you have after mandatory)
+        #   (b) Beginning Balance - Mandatory Amortization (can't pay down more debt than exists)
+        # Wrapped in MAX(0, ...) to prevent negative paydown in bad years
+        cash_minus_mand = f"{col_letter}{cash_available_row}-{col_letter}{mandatory_amort_row}"
+        begin_minus_mand = f"{col_letter}{beginning_balance_row}-{col_letter}{mandatory_amort_row}"
+        cell.value = f"=MAX(0,MIN({cash_minus_mand},{begin_minus_mand}))"
+        cell.font = BLACK_FONT
+        cell.number_format = CURRENCY_FORMAT
+    current_row += 1
+
+    # --- Ending Debt Balance ---
+    ending_balance_row = current_row
+    ws.cell(row=current_row, column=2, value="Ending Debt Balance").font = BLACK_FONT_BOLD
+    for year in range(1, exit_year + 1):
+        col = 2 + year
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=current_row, column=col)
+        # Ending = Beginning - Mandatory - Optional
+        cell.value = f"={col_letter}{beginning_balance_row}-{col_letter}{mandatory_amort_row}-{col_letter}{optional_paydown_row}"
+        cell.font = BLACK_FONT_BOLD
+        cell.number_format = CURRENCY_FORMAT
+        cell.border = Border(top=Side(style='thin'), bottom=Side(style='double'))
+    current_row += 2
+
+    # ==========================================================================
+    # LEVERAGE METRICS SECTION
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="Leverage Metrics").font = SUBSECTION_FONT
+    ws.cell(row=current_row, column=2).fill = SUBSECTION_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=2 + exit_year)
+    current_row += 1
+
+    # --- Leverage Ratio (Ending Debt / EBITDA) ---
+    leverage_ratio_row = current_row
+    ws.cell(row=current_row, column=2, value="Leverage Ratio (Debt / EBITDA)").font = BLACK_FONT
+    for year in range(1, exit_year + 1):
+        col = 2 + year
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=current_row, column=col)
+        # Ending Debt Balance / EBITDA from Operating Model
+        cell.value = f"=IF('Operating Model'!{col_letter}{ebitda_row}=0,0,{col_letter}{ending_balance_row}/'Operating Model'!{col_letter}{ebitda_row})"
+        cell.font = BLACK_FONT
+        cell.number_format = MULTIPLE_FORMAT
+
+    # Create named ranges for key debt schedule values
+    from openpyxl.workbook.defined_name import DefinedName
+
+    # Exit year ending debt balance (for returns calculation)
+    exit_col = get_column_letter(2 + exit_year)
+    defn = DefinedName('ExitDebtBalance', attr_text=f"'Debt Schedule'!{exit_col}{ending_balance_row}")
+    wb.defined_names['ExitDebtBalance'] = defn
+
+    # Return row references
+    return {
+        'beginning_balance_row': beginning_balance_row,
+        'interest_expense_row': interest_expense_row,
+        'mandatory_amort_row': mandatory_amort_row,
+        'cash_available_row': cash_available_row,
+        'optional_paydown_row': optional_paydown_row,
+        'ending_balance_row': ending_balance_row,
+        'leverage_ratio_row': leverage_ratio_row,
+        'exit_year': exit_year,
+        'year_start_col': year_start_col,
+    }
+
+
+# =============================================================================
+# WIRE UP INTEREST EXPENSE (after Debt Schedule is built)
+# =============================================================================
+
+def wire_interest_expense(wb: Workbook, op_model_refs: dict, debt_schedule_refs: dict):
+    """
+    Update Operating Model's Interest Expense row to reference Debt Schedule.
+
+    This is called after both tabs are built to wire up the cross-reference.
+    Removes the placeholder styling (orange fill) and replaces hardcoded 0 with
+    a formula referencing the Debt Schedule's Interest Expense row.
+
+    Dependency chain verification (no circular reference):
+    1. Debt Schedule Beginning Balance (Year t) = NewDebtRaised (Year 1) or prior Ending Balance
+    2. Debt Schedule Interest Expense = Beginning Balance × InterestRate
+    3. Operating Model Interest Expense = Debt Schedule Interest Expense (same year)
+    4. Operating Model FCF = ... - Interest Expense - ...
+    5. Debt Schedule Cash Available = Operating Model FCF
+    6. Debt Schedule Ending Balance = Beginning - Mandatory - Optional Paydown
+    7. NEXT year's Beginning Balance = This year's Ending Balance
+
+    The key insight: Interest for Year t depends on Beginning Balance for Year t,
+    which is fully determined before Year t's FCF is calculated. The dependency
+    flows one direction: Beginning -> Interest -> FCF -> Ending -> Next Beginning.
+    """
+    ws = wb['Operating Model']
+
+    exit_year = op_model_refs['exit_year']
+    interest_row = op_model_refs['interest_row']
+    debt_interest_row = debt_schedule_refs['interest_expense_row']
+
+    for year in range(1, exit_year + 1):
+        col = 2 + year  # Column C = Year 1, D = Year 2, etc.
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=interest_row, column=col)
+
+        # Replace placeholder with formula referencing Debt Schedule
+        cell.value = f"='Debt Schedule'!{col_letter}{debt_interest_row}"
+        cell.font = BLACK_FONT
+        cell.number_format = CURRENCY_FORMAT
+        # Remove placeholder fill (set to no fill)
+        cell.fill = PatternFill(fill_type=None)
+        # Remove placeholder comment
+        cell.comment = None
+
+
+# =============================================================================
 # MAIN GENERATOR FUNCTION
 # =============================================================================
 
@@ -1170,6 +1425,13 @@ def generate_workbook(validated_summary: dict, output_dir: str = None) -> str:
     # Build Operating Model tab
     op_model_refs = build_operating_model_tab(wb, summary, named_ranges)
 
+    # Build Debt Schedule tab
+    debt_schedule_refs = build_debt_schedule_tab(wb, summary, op_model_refs)
+
+    # Wire up Operating Model's Interest Expense to reference Debt Schedule
+    # (replaces the placeholder 0 values with actual formulas)
+    wire_interest_expense(wb, op_model_refs, debt_schedule_refs)
+
     # Generate filename
     ticker = summary.get('ticker', 'UNKNOWN')
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -1210,6 +1472,7 @@ def verify_workbook_formulas(filepath: str) -> dict:
         'assumptions_formulas': {},
         'sources_uses_formulas': {},
         'operating_model_formulas': {},
+        'debt_schedule_formulas': {},
         'named_ranges': {}
     }
 
@@ -1244,6 +1507,15 @@ def verify_workbook_formulas(filepath: str) -> dict:
                 if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
                     cell_ref = f"{get_column_letter(cell.column)}{cell.row}"
                     result['operating_model_formulas'][cell_ref] = cell.value
+
+    # Check Debt Schedule tab
+    if 'Debt Schedule' in wb.sheetnames:
+        ws = wb['Debt Schedule']
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
+                    cell_ref = f"{get_column_letter(cell.column)}{cell.row}"
+                    result['debt_schedule_formulas'][cell_ref] = cell.value
 
     return result
 
@@ -1526,6 +1798,231 @@ def print_operating_model(op_model: dict):
     print()
     print(f"  FCF/EBITDA Year 1: {year1['fcf']/year1['ebitda']*100:.1f}%")
     print(f"  FCF/EBITDA Year {final['year']}: {final['fcf']/final['ebitda']*100:.1f}%")
+
+
+# =============================================================================
+# INTEGRATED DEBT SCHEDULE + OPERATING MODEL EVALUATION
+# =============================================================================
+
+def evaluate_full_model(summary: dict, validation: dict, exit_year: int = 5) -> dict:
+    """
+    Evaluate the full integrated model including Operating Model and Debt Schedule.
+
+    This computes the actual values accounting for the feedback between:
+    - Debt Schedule's Interest Expense (depends on beginning balance)
+    - Operating Model's FCF (depends on interest expense)
+    - Debt Schedule's paydown (depends on FCF)
+
+    Since interest is calculated on BEGINNING balance (not average), there's no
+    true circularity - each year's values can be computed sequentially.
+
+    Returns a dict with both operating model projections and debt schedule values.
+    """
+    fiscal_years = summary.get('fiscal_years', {})
+    if not fiscal_years:
+        return {"error": "No fiscal year data"}
+
+    most_recent_fy = max(fiscal_years.keys())
+    fy_data = fiscal_years[most_recent_fy]
+
+    # Entry values
+    entry_revenue = fy_data.get('revenue', 0) or 0
+    entry_ebitda = fy_data.get('ebitda_calculated')
+    if entry_ebitda is None:
+        op_inc = fy_data.get('operating_income', 0) or 0
+        da = fy_data.get('da', 0) or 0
+        entry_ebitda = op_inc + da
+
+    # Calculate growth rate
+    revenue_growth, growth_is_fallback, _ = calculate_revenue_growth_rate(summary)
+
+    # Assumptions (defaults from build_assumptions_tab)
+    ebitda_margin = entry_ebitda / entry_revenue if entry_revenue > 0 else 0.15
+    da_pct = (fy_data.get('da', 0) or 0) / entry_revenue if entry_revenue > 0 else 0.03
+    capex_pct = (fy_data.get('capex', 0) or 0) / entry_revenue if entry_revenue > 0 else 0.02
+    nwc_pct = 0.0
+    tax_rate = 0.25
+    interest_rate = 0.08
+    leverage_multiple = 5.5
+    mandatory_amort_pct = 0.01
+
+    # Calculate new debt raised
+    new_debt_raised = entry_ebitda * leverage_multiple
+
+    projections = []
+    debt_schedule = []
+    prev_revenue = entry_revenue
+    beginning_balance = new_debt_raised
+
+    for year in range(1, exit_year + 1):
+        # =====================================================================
+        # DEBT SCHEDULE - Interest (based on BEGINNING balance - no circularity)
+        # =====================================================================
+        interest_expense = beginning_balance * interest_rate
+        mandatory_amort = new_debt_raised * mandatory_amort_pct
+
+        # =====================================================================
+        # OPERATING MODEL
+        # =====================================================================
+        # Revenue
+        revenue = prev_revenue * (1 + revenue_growth)
+
+        # EBITDA
+        ebitda = revenue * ebitda_margin
+
+        # D&A
+        da = revenue * da_pct
+
+        # EBIT
+        ebit = ebitda - da
+
+        # Pre-Tax Income (now with actual interest!)
+        pretax = ebit - interest_expense
+
+        # Taxes (floored at 0)
+        taxes = max(0, pretax * tax_rate)
+
+        # Net Income
+        net_income = pretax - taxes
+
+        # FCF components
+        capex = revenue * capex_pct
+        nwc_change = revenue * nwc_pct
+
+        # FCF for Debt Paydown
+        fcf = net_income + da - capex - nwc_change
+
+        # =====================================================================
+        # DEBT SCHEDULE - Paydown (depends on FCF which is now calculated)
+        # =====================================================================
+        cash_available = fcf
+        # Optional paydown = MIN(cash after mandatory, debt remaining after mandatory)
+        # Floor at 0 to prevent negative paydown
+        optional_paydown = max(0, min(
+            cash_available - mandatory_amort,
+            beginning_balance - mandatory_amort
+        ))
+        ending_balance = beginning_balance - mandatory_amort - optional_paydown
+
+        # Handle edge case where ending balance goes slightly negative due to rounding
+        ending_balance = max(0, ending_balance)
+
+        # Leverage ratio
+        leverage_ratio = ending_balance / ebitda if ebitda > 0 else 0
+
+        # Store Operating Model projection
+        projections.append({
+            'year': year,
+            'calendar_year': most_recent_fy + year,
+            'revenue': revenue,
+            'ebitda': ebitda,
+            'da': da,
+            'ebit': ebit,
+            'interest': interest_expense,
+            'pretax': pretax,
+            'taxes': taxes,
+            'net_income': net_income,
+            'capex': capex,
+            'nwc_change': nwc_change,
+            'fcf': fcf,
+        })
+
+        # Store Debt Schedule
+        debt_schedule.append({
+            'year': year,
+            'beginning_balance': beginning_balance,
+            'interest_expense': interest_expense,
+            'mandatory_amort': mandatory_amort,
+            'cash_available': cash_available,
+            'optional_paydown': optional_paydown,
+            'ending_balance': ending_balance,
+            'leverage_ratio': leverage_ratio,
+        })
+
+        # Prepare for next year
+        prev_revenue = revenue
+        beginning_balance = ending_balance
+
+    return {
+        'ticker': summary.get('ticker', 'Unknown'),
+        'most_recent_fy': most_recent_fy,
+        'entry_revenue': entry_revenue,
+        'entry_ebitda': entry_ebitda,
+        'new_debt_raised': new_debt_raised,
+        'revenue_growth': revenue_growth,
+        'growth_is_fallback': growth_is_fallback,
+        'ebitda_margin': ebitda_margin,
+        'da_pct': da_pct,
+        'capex_pct': capex_pct,
+        'tax_rate': tax_rate,
+        'interest_rate': interest_rate,
+        'mandatory_amort_pct': mandatory_amort_pct,
+        'projections': projections,
+        'debt_schedule': debt_schedule,
+    }
+
+
+def print_full_model(model: dict):
+    """Print the full integrated model (Operating Model + Debt Schedule)."""
+    if "error" in model:
+        print(f"  ERROR: {model['error']}")
+        return
+
+    def fmt_currency(val):
+        if abs(val) >= 1e9:
+            return f"${val/1e9:,.2f}B"
+        elif abs(val) >= 1e6:
+            return f"${val/1e6:,.2f}M"
+        else:
+            return f"${val:,.0f}"
+
+    ticker = model['ticker']
+    year1 = model['projections'][0]
+    final = model['projections'][-1]
+    debt1 = model['debt_schedule'][0]
+    debt_final = model['debt_schedule'][-1]
+
+    print(f"\n  Full Integrated Model for {ticker}:")
+    print(f"  Entry FY: {model['most_recent_fy']}")
+    print(f"  New Debt Raised: {fmt_currency(model['new_debt_raised'])}")
+    print(f"  Interest Rate: {model['interest_rate']*100:.1f}%")
+    print(f"  Mandatory Amort: {model['mandatory_amort_pct']*100:.1f}%/year")
+    print()
+
+    # Operating Model Summary
+    print(f"  --- OPERATING MODEL ---")
+    print(f"  {'Metric':<20}  {'Year 1':>12}  {'Year {}'.format(len(model['projections'])):>12}")
+    print("  " + "-" * 48)
+    for label, key in [('Revenue', 'revenue'), ('EBITDA', 'ebitda'), ('Interest', 'interest'),
+                        ('Net Income', 'net_income'), ('FCF', 'fcf')]:
+        print(f"  {label:<20}  {fmt_currency(year1[key]):>12}  {fmt_currency(final[key]):>12}")
+
+    # Debt Schedule Summary
+    print()
+    print(f"  --- DEBT SCHEDULE ---")
+    print(f"  {'Metric':<20}  {'Year 1':>12}  {'Year {}'.format(len(model['debt_schedule'])):>12}")
+    print("  " + "-" * 48)
+    for label, key in [('Beginning Balance', 'beginning_balance'),
+                        ('Interest Expense', 'interest_expense'),
+                        ('Mandatory Amort', 'mandatory_amort'),
+                        ('Optional Paydown', 'optional_paydown'),
+                        ('Ending Balance', 'ending_balance')]:
+        print(f"  {label:<20}  {fmt_currency(debt1[key]):>12}  {fmt_currency(debt_final[key]):>12}")
+
+    print()
+    print(f"  Leverage Ratio Year 1: {debt1['leverage_ratio']:.1f}x")
+    print(f"  Leverage Ratio Year {len(model['debt_schedule'])}: {debt_final['leverage_ratio']:.1f}x")
+
+    # Debt paydown check
+    total_paydown = model['new_debt_raised'] - debt_final['ending_balance']
+    pct_paid = total_paydown / model['new_debt_raised'] * 100 if model['new_debt_raised'] > 0 else 0
+    print(f"  Total Debt Paydown: {fmt_currency(total_paydown)} ({pct_paid:.1f}% of original)")
+
+    # Check for anomalies
+    if debt_final['ending_balance'] < 0:
+        print("  [WARNING] Ending balance went negative!")
+    if debt_final['ending_balance'] > model['new_debt_raised']:
+        print("  [WARNING] Ending balance exceeds original debt!")
 
 
 # =============================================================================
@@ -1869,11 +2366,19 @@ if __name__ == "__main__":
         for cell, formula in verification['sources_uses_formulas'].items():
             print(f"  {cell}: {formula}")
 
-        # Print Operating Model formulas (Year 1 and Year 5 only)
-        print(f"\nKey formula strings from Operating Model (Year 1 & Year 5):")
+        # Print Operating Model formulas (Year 1 and Year 5 only) - focus on Interest Expense
+        print(f"\nKey formula strings from Operating Model (Interest Expense row):")
         op_formulas = verification.get('operating_model_formulas', {})
         for cell, formula in sorted(op_formulas.items()):
             # Only show columns C (Year 1) and G (Year 5)
+            col = cell[0]
+            if col in ['C', 'G'] and 'Debt Schedule' in formula:
+                print(f"  {cell}: {formula}")
+
+        # Print Debt Schedule formulas (Year 1 and Year 5 only)
+        print(f"\nKey formula strings from Debt Schedule (Year 1 & Year 5):")
+        debt_formulas = verification.get('debt_schedule_formulas', {})
+        for cell, formula in sorted(debt_formulas.items()):
             col = cell[0]
             if col in ['C', 'G']:
                 print(f"  {cell}: {formula}")
@@ -1883,7 +2388,8 @@ if __name__ == "__main__":
         key_names = ['EntryRevenue', 'EntryEBITDA', 'EntryMultiple', 'LeverageMultiple',
                      'TransactionFeePct', 'TotalUses', 'NewDebtRaised',
                      'SponsorEquity', 'TotalSources', 'BalanceCheck', 'ExitEBITDA',
-                     'RevenueGrowthRate', 'EBITDAMargin', 'DAPct', 'CapExPct', 'NWCPct', 'TaxRate']
+                     'RevenueGrowthRate', 'EBITDAMargin', 'DAPct', 'CapExPct', 'NWCPct', 'TaxRate',
+                     'InterestRate', 'AmortizationPct', 'ExitDebtBalance']
         for name in key_names:
             if name in verification['named_ranges']:
                 print(f"  {name}: {verification['named_ranges'][name]}")
@@ -1893,10 +2399,10 @@ if __name__ == "__main__":
         computed = evaluate_model_values(summary, validation)
         print_computed_values(computed)
 
-        # Compute and print Operating Model projections
-        print(f"\n--- Operating Model Computed Values ---")
-        op_model = evaluate_operating_model(summary, validation, exit_year=5)
-        print_operating_model(op_model)
+        # Compute and print Full Integrated Model (Operating Model + Debt Schedule)
+        print(f"\n--- Full Integrated Model (Operating Model + Debt Schedule) ---")
+        full_model = evaluate_full_model(summary, validation, exit_year=5)
+        print_full_model(full_model)
 
     print(f"\n{'='*70}")
     print("TEST COMPLETE")
