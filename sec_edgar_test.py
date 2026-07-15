@@ -496,23 +496,40 @@ def extract_da_with_sum_fallback(
 
     Some companies (e.g., MSFT, POOL) report depreciation and amortization as
     separate line items rather than a combined concept. This function:
-    1. First tries combined tags (DepreciationDepletionAndAmortization, DepreciationAndAmortization)
-    2. If those fail, looks for separate Depreciation + AmortizationOfIntangibleAssets and sums them
+    1. First tries combined tags (DepreciationDepletionAndAmortization, DepreciationAndAmortization,
+       DepreciationAmortizationAndAccretionNet)
+    2. If those fail OR are stale (3+ years old), looks for separate Depreciation +
+       AmortizationOfIntangibleAssets and sums them
 
     Returns (values_list, matched_tag_description).
     """
+    from datetime import datetime
+    current_year = datetime.now().year
+
     # Try combined tags first
     da_vals, da_tag = extract_with_fallbacks(
         facts,
-        ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
+        [
+            "DepreciationDepletionAndAmortization",
+            "DepreciationAndAmortization",
+            "DepreciationAmortizationAndAccretionNet",  # DECK uses this
+        ],
         friendly_name="D&A (combined)",
         verbose=False  # We'll print our own message
     )
 
+    # Check if data is recent enough (within 3 years)
     if da_vals:
-        if verbose:
-            print(f"  D&A: matched combined tag '{da_tag}'")
-        return da_vals, da_tag
+        most_recent_fy = max(v.get("fiscal_year", 0) for v in da_vals)
+        if current_year - most_recent_fy <= 2:
+            # Data is recent, use it
+            if verbose:
+                print(f"  D&A: matched combined tag '{da_tag}'")
+            return da_vals, da_tag
+        else:
+            # Data is stale, try fallback
+            if verbose:
+                print(f"  D&A: combined tag data stale (FY{most_recent_fy}), trying fallback...")
 
     # Fallback: try summing separate tags
     depreciation_vals = extract_concept_values(
@@ -597,13 +614,39 @@ def extract_all_financials(facts: dict, ticker: str, verbose: bool = True) -> di
     extracted["tag_matches"]["revenue"] = revenue_tag
     extracted["data"]["revenue"] = revenue_vals
 
-    # Operating Income
+    # Operating Income (with fallback for companies that don't use OperatingIncomeLoss)
+    # JNJ and others stopped using OperatingIncomeLoss after 2014
     op_income_vals, op_income_tag = extract_with_fallbacks(
         facts,
-        ["OperatingIncomeLoss"],
+        [
+            "OperatingIncomeLoss",
+            "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",  # JNJ uses this
+        ],
         friendly_name="Operating Income",
         verbose=verbose
     )
+
+    # Check if data is recent enough (within 3 years)
+    current_year = datetime.now().year
+    if op_income_vals:
+        most_recent_fy = max(v.get("fiscal_year", 0) for v in op_income_vals)
+        if current_year - most_recent_fy > 2:
+            # Data is stale, try additional fallbacks
+            if verbose:
+                print(f"  Operating Income: data stale (FY{most_recent_fy}), trying fallback...")
+            # Try pre-tax income as fallback
+            fallback_vals, fallback_tag = extract_with_fallbacks(
+                facts,
+                ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"],
+                friendly_name="Operating Income (pre-tax fallback)",
+                verbose=False
+            )
+            if fallback_vals:
+                op_income_vals = fallback_vals
+                op_income_tag = fallback_tag + " (pre-tax fallback)"
+                if verbose:
+                    print(f"  Operating Income: using pre-tax income fallback")
+
     extracted["tag_matches"]["operating_income"] = op_income_tag
     extracted["data"]["operating_income"] = op_income_vals
 
