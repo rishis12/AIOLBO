@@ -111,10 +111,12 @@ def validate(summary: dict) -> dict:
         "sector_excluded": False,
         "sector_excluded_reason": None,
         "defaults_applied": [],
+        "substitute_warnings": [],  # Warnings for fields using proxy/substitute values
     }
 
     ticker = summary.get("ticker", "Unknown")
     fiscal_years = summary.get("fiscal_years", {})
+    substitute_flags = summary.get("substitute_flags", {})
 
     # =========================================================================
     # DISQUALIFYING CONDITIONS (check these first - any one = fail)
@@ -264,6 +266,35 @@ def validate(summary: dict) -> dict:
     if soft_missing and result["status"] == "pass":
         result["status"] = "degraded"
 
+    # =========================================================================
+    # SUBSTITUTE VALUE WARNINGS
+    # =========================================================================
+
+    substitute_warnings = []
+
+    # Check for operating income substitutes
+    op_income_flag = substitute_flags.get("operating_income")
+    if op_income_flag == "CALCULATED":
+        substitute_warnings.append(
+            "Operating Income is CALCULATED from GrossProfit - SG&A - R&D. "
+            "This company does not report OperatingIncomeLoss directly. "
+            "The calculated value may differ from the company's reported operating income "
+            "if they have other operating expenses (e.g., restructuring, impairment)."
+        )
+    elif op_income_flag == "PRETAX_SUBSTITUTE":
+        substitute_warnings.append(
+            "WARNING: Operating Income is using PRE-TAX INCOME as a substitute. "
+            "Pre-tax income includes non-operating items (interest expense, other income/expense) "
+            "that operating income specifically excludes. "
+            "EBITDA calculations will include these non-operating items and may be misleading."
+        )
+
+    result["substitute_warnings"] = substitute_warnings
+
+    # Substitute warnings cause degraded status (not fail)
+    if substitute_warnings and result["status"] == "pass":
+        result["status"] = "degraded"
+
     return result
 
 
@@ -306,7 +337,12 @@ def format_validation_result(summary: dict, result: dict) -> str:
         for default in result["defaults_applied"]:
             lines.append(f"  --> {default}")
 
-    if result["status"] == "pass" and not result["missing_soft"]:
+    if result.get("substitute_warnings"):
+        lines.append(f"\n--- Substitute Value Warnings ---")
+        for warning in result["substitute_warnings"]:
+            lines.append(f"  [~] {warning}")
+
+    if result["status"] == "pass" and not result["missing_soft"] and not result.get("substitute_warnings"):
         lines.append(f"\n[OK] All required data present. Ready for modeling.")
 
     return "\n".join(lines)
@@ -316,19 +352,20 @@ def print_validation_summary_table(all_results: dict):
     """
     Print a summary table of validation results for multiple tickers.
     """
-    print(f"\n{'='*100}")
+    print(f"\n{'='*110}")
     print("VALIDATION SUMMARY TABLE")
-    print("="*100)
+    print("="*110)
 
     # Header
-    print(f"\n{'Ticker':<8} {'Status':<10} {'Sector Excl':<12} {'Hard Miss':<10} {'Soft Miss':<10} {'Reasons'}")
-    print("-"*100)
+    print(f"\n{'Ticker':<8} {'Status':<10} {'Sector':<8} {'Hard':<6} {'Soft':<6} {'Subs':<6} {'Notes'}")
+    print("-"*110)
 
     for ticker, (summary, result) in all_results.items():
         status = result["status"].upper()
         sector = "Yes" if result["sector_excluded"] else "-"
         hard_count = len(result["missing_hard"])
         soft_count = len(result["missing_soft"])
+        subs_count = len(result.get("substitute_warnings", []))
 
         # Build concise reason string
         reasons = []
@@ -338,17 +375,24 @@ def print_validation_summary_table(all_results: dict):
         if result["disqualifying_reasons"]:
             for r in result["disqualifying_reasons"]:
                 # Extract first few words
-                short = r.split(".")[0][:40]
+                short = r.split(".")[0][:35]
                 if short not in reasons and "SIC" not in short and "missing" not in short.lower():
                     reasons.append(short)
         if hard_count > 0 and not any("missing" in r.lower() for r in reasons):
             reasons.append(f"{hard_count} hard req missing")
 
-        reason_str = "; ".join(reasons[:2]) if reasons else "-"
-        if len(reason_str) > 45:
-            reason_str = reason_str[:42] + "..."
+        # Add substitute flag indicator
+        sub_flags = summary.get("substitute_flags", {})
+        if sub_flags.get("operating_income") == "CALCULATED":
+            reasons.append("OpInc=CALC")
+        elif sub_flags.get("operating_income") == "PRETAX_SUBSTITUTE":
+            reasons.append("OpInc=PRETAX!")
 
-        print(f"{ticker:<8} {status:<10} {sector:<12} {hard_count:<10} {soft_count:<10} {reason_str}")
+        reason_str = "; ".join(reasons[:3]) if reasons else "-"
+        if len(reason_str) > 50:
+            reason_str = reason_str[:47] + "..."
+
+        print(f"{ticker:<8} {status:<10} {sector:<8} {hard_count:<6} {soft_count:<6} {subs_count:<6} {reason_str}")
 
 
 # =============================================================================
@@ -411,7 +455,7 @@ if __name__ == "__main__":
                 sec_user_agent,
                 twelve_data_key,
                 verbose=False,
-                skip_price=True  # Skip price for bulk test
+                skip_price=False  # Fetch price to validate current_price availability
             )
 
             if summary:

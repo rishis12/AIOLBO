@@ -420,6 +420,22 @@ def extract_with_fallbacks(
 # TWELVE DATA CLIENT
 # ============================================================================
 
+# Twelve Data free tier: 8 requests/minute -> 7.5s between requests to be safe
+TWELVE_DATA_REQUEST_DELAY = 8.0
+_last_twelve_data_request_time = 0.0
+
+
+def _twelve_data_rate_limit():
+    """Enforce Twelve Data rate limit (8 requests/minute for free tier)."""
+    global _last_twelve_data_request_time
+    elapsed = time.time() - _last_twelve_data_request_time
+    if elapsed < TWELVE_DATA_REQUEST_DELAY:
+        sleep_time = TWELVE_DATA_REQUEST_DELAY - elapsed
+        print(f"  (rate limit: waiting {sleep_time:.1f}s)", end="", flush=True)
+        time.sleep(sleep_time)
+    _last_twelve_data_request_time = time.time()
+
+
 def get_twelve_data_api_key() -> str:
     """Read Twelve Data API key from environment variable."""
     api_key = os.environ.get("TWELVE_DATA_API_KEY")
@@ -437,6 +453,9 @@ def fetch_current_price(ticker: str, api_key: str) -> Optional[float]:
     Fetch current share price from Twelve Data quote endpoint.
     Returns the current price as a float, or None if unavailable.
     """
+    # Enforce rate limit for free tier
+    _twelve_data_rate_limit()
+
     url = "https://api.twelvedata.com/quote"
     params = {
         "symbol": ticker,
@@ -589,6 +608,111 @@ def extract_da_with_sum_fallback(
     return [], "MISSING"
 
 
+def extract_operating_income_with_fallbacks(
+    facts: dict,
+    verbose: bool = True
+) -> tuple[list[dict], str, str]:
+    """
+    Extract operating income with intelligent fallbacks.
+
+    Fallback priority:
+    1. OperatingIncomeLoss (direct XBRL tag)
+    2. GrossProfit - SG&A - R&D (calculated proxy - closer to true operating income)
+    3. Pre-tax income (last resort - includes non-operating items)
+
+    Returns (values_list, tag_description, substitute_flag).
+    substitute_flag will be:
+    - None if using direct OperatingIncomeLoss
+    - "CALCULATED" if using GrossProfit - SG&A - R&D
+    - "PRETAX_SUBSTITUTE" if using pre-tax income
+    """
+    current_year = datetime.now().year
+
+    # Try direct OperatingIncomeLoss first
+    op_income_vals, op_income_tag = extract_with_fallbacks(
+        facts,
+        ["OperatingIncomeLoss"],
+        friendly_name="Operating Income",
+        verbose=False
+    )
+
+    # Check if data is recent enough (within 2 years)
+    if op_income_vals:
+        most_recent_fy = max(v.get("fiscal_year", 0) for v in op_income_vals)
+        if current_year - most_recent_fy <= 2:
+            if verbose:
+                print(f"  Operating Income: matched tag 'OperatingIncomeLoss'")
+            return op_income_vals, op_income_tag, None
+        else:
+            if verbose:
+                print(f"  Operating Income: OperatingIncomeLoss stale (FY{most_recent_fy}), trying calculated fallback...")
+
+    # Fallback 1: Try to calculate from GrossProfit - SG&A - R&D
+    gross_profit_vals = extract_concept_values(
+        facts, "GrossProfit", "us-gaap", "10-K", max_years=10
+    )
+    sga_vals = extract_concept_values(
+        facts, "SellingGeneralAndAdministrativeExpense", "us-gaap", "10-K", max_years=10
+    )
+    rnd_vals = extract_concept_values(
+        facts, "ResearchAndDevelopmentExpense", "us-gaap", "10-K", max_years=10
+    )
+
+    if gross_profit_vals and sga_vals:
+        # Build year-indexed dicts
+        gp_by_year = {v["fiscal_year"]: v["value"] for v in gross_profit_vals}
+        sga_by_year = {v["fiscal_year"]: v["value"] for v in sga_vals}
+        rnd_by_year = {v["fiscal_year"]: v["value"] for v in rnd_vals} if rnd_vals else {}
+
+        # Calculate operating income for each year where we have GrossProfit and SG&A
+        calculated_vals = []
+        for gp_entry in gross_profit_vals:
+            fy = gp_entry["fiscal_year"]
+            if fy in sga_by_year:
+                gp = gp_by_year[fy]
+                sga = sga_by_year[fy]
+                rnd = rnd_by_year.get(fy, 0)
+                calc_op_inc = gp - sga - rnd
+
+                calculated_vals.append({
+                    "fiscal_year": fy,
+                    "end_date": gp_entry.get("end_date"),
+                    "value": calc_op_inc,
+                    "form": gp_entry.get("form"),
+                    "filed": gp_entry.get("filed"),
+                    "_components": f"GrossProfit({gp/1e9:.1f}B) - SG&A({sga/1e9:.1f}B) - R&D({rnd/1e9:.1f}B)"
+                })
+
+        if calculated_vals:
+            most_recent_fy = max(v["fiscal_year"] for v in calculated_vals)
+            if current_year - most_recent_fy <= 2:
+                tag_str = "GrossProfit - SG&A - R&D (calculated)"
+                if verbose:
+                    print(f"  Operating Income: using calculated fallback ({tag_str})")
+                return calculated_vals, tag_str, "CALCULATED"
+
+    # Fallback 2: Use pre-tax income as last resort
+    pretax_vals, pretax_tag = extract_with_fallbacks(
+        facts,
+        ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"],
+        friendly_name="Operating Income (pre-tax fallback)",
+        verbose=False
+    )
+
+    if pretax_vals:
+        tag_str = "IncomeLossFromContinuingOperations... (PRE-TAX SUBSTITUTE)"
+        if verbose:
+            print(f"  Operating Income: WARNING - using pre-tax income as substitute")
+            print(f"    Pre-tax income includes non-operating items (interest, other income/expense)")
+            print(f"    EBITDA calculations will be distorted by non-operating items")
+        return pretax_vals, tag_str, "PRETAX_SUBSTITUTE"
+
+    # Nothing found
+    if verbose:
+        print(f"  MISSING: Operating Income (tried: OperatingIncomeLoss, calculated, pre-tax)")
+    return [], "MISSING", None
+
+
 def extract_all_financials(facts: dict, ticker: str, verbose: bool = True) -> dict:
     """
     Extract all target financial concepts from CompanyFacts.
@@ -601,6 +725,7 @@ def extract_all_financials(facts: dict, ticker: str, verbose: bool = True) -> di
 
     extracted = {
         "tag_matches": {},  # Which tag name matched for each concept
+        "substitute_flags": {},  # Flags for concepts using substitute/proxy values
         "data": {}
     }
 
@@ -614,41 +739,14 @@ def extract_all_financials(facts: dict, ticker: str, verbose: bool = True) -> di
     extracted["tag_matches"]["revenue"] = revenue_tag
     extracted["data"]["revenue"] = revenue_vals
 
-    # Operating Income (with fallback for companies that don't use OperatingIncomeLoss)
-    # JNJ and others stopped using OperatingIncomeLoss after 2014
-    op_income_vals, op_income_tag = extract_with_fallbacks(
-        facts,
-        [
-            "OperatingIncomeLoss",
-            "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",  # JNJ uses this
-        ],
-        friendly_name="Operating Income",
-        verbose=verbose
+    # Operating Income (with intelligent fallbacks)
+    op_income_vals, op_income_tag, op_income_flag = extract_operating_income_with_fallbacks(
+        facts, verbose=verbose
     )
-
-    # Check if data is recent enough (within 3 years)
-    current_year = datetime.now().year
-    if op_income_vals:
-        most_recent_fy = max(v.get("fiscal_year", 0) for v in op_income_vals)
-        if current_year - most_recent_fy > 2:
-            # Data is stale, try additional fallbacks
-            if verbose:
-                print(f"  Operating Income: data stale (FY{most_recent_fy}), trying fallback...")
-            # Try pre-tax income as fallback
-            fallback_vals, fallback_tag = extract_with_fallbacks(
-                facts,
-                ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"],
-                friendly_name="Operating Income (pre-tax fallback)",
-                verbose=False
-            )
-            if fallback_vals:
-                op_income_vals = fallback_vals
-                op_income_tag = fallback_tag + " (pre-tax fallback)"
-                if verbose:
-                    print(f"  Operating Income: using pre-tax income fallback")
-
     extracted["tag_matches"]["operating_income"] = op_income_tag
     extracted["data"]["operating_income"] = op_income_vals
+    if op_income_flag:
+        extracted["substitute_flags"]["operating_income"] = op_income_flag
 
     # D&A (with fallback to summing separate Depreciation + Amortization)
     da_vals, da_tag = extract_da_with_sum_fallback(facts, verbose=verbose)
@@ -765,6 +863,7 @@ def build_summary(
         "shares_outstanding": None,
         "shares_outstanding_date": None,
         "tag_matches": extracted["tag_matches"],
+        "substitute_flags": extracted.get("substitute_flags", {}),
         "fiscal_years": {},
         "missing_fields": []
     }
