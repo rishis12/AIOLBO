@@ -167,6 +167,50 @@ Takes a single spreadsheet snapshot (base case or a scenario) and produces a nar
 
 Any user-overridden fundamental (e.g. EBITDA adjusted -10% from actual) must be disclosed explicitly in the narrative, not presented as fact.
 
+### Status: Complete and Verified
+
+Built and tested end-to-end against AAPL, CCL, and FIZZ — the same three tickers used to verify the Excel generator, chosen to stress different edge cases (large-cap clean data, debt-heavy negative FCF, small-cap zero existing debt).
+
+### How It Works
+
+**Spreadsheet recalculation:** Reads a generated `.xlsx` file, recalculates it for real (LibreOffice headless preferred; falls back to Excel COM automation on Windows when LibreOffice isn't available), then reads back computed values with openpyxl in `data_only=True` mode. Never trusts formula strings or a parallel Python calculation — this was a hard-learned lesson from the Debt Schedule cross-sheet reference bug earlier in the build, where a parallel Python calculation drifted from what the actual file contained undetected.
+
+*Note: The Excel COM fallback is Windows-only and won't work once this moves to a Linux backend for the web app — it's a local dev convenience, not the production path. LibreOffice is a hard dependency for production.*
+
+**Provenance tagging:** Every extracted field carries an explicit provenance tag:
+- `fetched` — real SEC EDGAR / Twelve Data value
+- `defaulted` — soft-requirement field missing, fallback applied
+- `substituted` — calculated via a fallback/proxy method (e.g., JNJ's operating income proxy or CCL's growth rate fallback)
+- `user_assumption` — one of the 14 deal-structure inputs
+- `calculated` — pure formula result
+
+Anything tagged `defaulted` or `substituted` is explicitly disclosed in the generated report, not silently included.
+
+**Deterministic feasibility score (0-100):** Computed in Python, not by the LLM, from five weighted components:
+
+| Component | Max Points | Scoring Scale |
+|-----------|------------|---------------|
+| IRR vs. Hurdle | 30 | 0 pts at ≤0%, 5 pts at 10%, scales to 30 pts at 25%+ |
+| MOIC | 20 | 0 pts at ≤1.0x, scales linearly to 20 pts at 3.0x+ |
+| Debt Service Coverage | 25 | 0 pts at ≤1.0x, scales linearly to 25 pts at 2.5x+ |
+| Leverage Reduction | 15 | 0 pts at 0%, scales linearly to 15 pts at 50%+ |
+| Data Quality | 10 | 10 pts minus 2 pts per defaulted/substituted field |
+
+**Debt Service Coverage calculation note:** Computed as `FCF for Debt Paydown / Mandatory Amortization` only — NOT including Interest Expense in the denominator, since FCF already has interest subtracted out. An earlier version double-counted interest and produced misleadingly low scores for healthy companies like AAPL; caught via cross-checking against the already-verified Debt Schedule numbers.
+
+The LLM's job is only to explain this already-computed score using its real component breakdown and exact thresholds — not to invent its own benchmark numbers. An earlier version had the LLM citing plausible-sounding but incorrect industry benchmarks (e.g., "1.5x" instead of the real 1.0x–2.5x scale) instead of the tool's actual thresholds; fixed by making the exact thresholds explicit in the prompt.
+
+**Scoped to capital structure feasibility:** The feasibility paragraph is deliberately scoped to capital structure soundness (debt service coverage, leverage trajectory, returns vs. PE benchmarks, data completeness) — NOT "likelihood this M&A deal closes." The tool has no visibility into regulatory approval, shareholder votes, financing markets, or negotiation dynamics, and the LLM prompt explicitly instructs it not to speculate about any of that. Verified across all three test tickers that this boundary holds.
+
+**BYOK LLM providers:** Narrative generation supports three providers through a single provider-agnostic interface:
+- Anthropic (Claude)
+- OpenAI (GPT)
+- Google Gemini
+
+Each user supplies their own API key at request time; keys are never stored, logged, or written to disk. This was a deliberate choice for a shareable portfolio project with no revenue model — avoids being on the hook for other users' API costs, unlike a single-key-server-side approach.
+
+**Sector/industry display:** Uses the SIC code + human-readable description (via the same SIC-based mapping used by the validator's sector-exclusion logic), not a raw numeric field. An earlier bug had this accidentally displaying CIK numbers instead of sector names.
+
 ## Comparison Tool
 
 - **Input:** Two spreadsheet snapshots (+ their generated reports)
@@ -189,14 +233,15 @@ Any user-overridden fundamental (e.g. EBITDA adjusted -10% from actual) must be 
 - Twelve Data integration for current price
 - Validator with pass/degraded/fail status
 - **Excel generator: All six tabs complete** (Assumptions, Sources & Uses, Operating Model, Debt Schedule, Returns, Sensitivity)
+- **Report generator: Complete** (provenance tagging, deterministic feasibility score, BYOK LLM narrative)
 - Mock data for testing without API credentials
 
-### Not Yet Implemented
+### Open Items / Not Yet Built
 
-- Report generator (next planned step)
-- Comparison tool
-- Web frontend
-- Web UI/backend architecture decisions (hosting, rate limiting)
+- **Scenario/comparison flow:** Duplicate a spreadsheet, edit assumptions, generate a second report, deterministically diff the two — next planned step
+- **Web UI shell:** Not yet built
+- **Hosting/backend architecture:** TBD (Render/Railway/Fly.io vs. serverless), rate limiting strategy not yet decided
+- **Production dependency note:** LibreOffice is a hard dependency for the production backend (the Excel COM fallback is Windows-dev-only) — this needs to be available in whatever hosting environment gets chosen
 
 ### Known Limitations (v2 Candidates)
 
