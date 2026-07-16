@@ -217,6 +217,32 @@ Each user supplies their own API key at request time; keys are never stored, log
 - **Process:** Deterministic delta computation on headline metrics (IRR, MOIC, leverage path) — never inferred from prose
 - **Output:** What changed, stated plainly. Commentary is intentionally minimal — states the delta, does not speculate on causal "why" beyond what's directly computable
 
+### Status: Complete and Verified
+
+Built on the same recalculation + provenance-tagged extraction infrastructure as the report generator (no duplicated logic) and the same BYOK provider abstraction (Anthropic/OpenAI/Gemini, user's own key).
+
+### Two Auto-Detected Modes
+
+Mode is determined automatically based on whether the two input files share the same ticker.
+
+**MODE A — Scenario Comparison** (same ticker in both files): Compares two deal scenarios for the same company. Deterministically computes:
+
+- **Input Diff:** Only the independent assumptions (of the 14) that actually differ between the two files — identical fields are excluded, not shown as "no change"
+- **Output Diff:** IRR, MOIC, Exit Equity Value, Feasibility Score (+ per-component breakdown), and Leverage Ratio trajectory, all as deltas
+
+*Tested with AAPL base case vs. a 5.5x → 7.0x leverage scenario.* Verified independently: higher leverage correctly reduced Sponsor Equity, which correctly amplified MOIC (2.52x → 4.04x) and IRR (20.3% → 32.2%), while correctly reducing the Leverage Reduction score component even as the total feasibility score rose — a genuine tradeoff the model surfaces rather than smooths over.
+
+**MODE B — Company Comparison** (different tickers): Compares two different companies' deals side by side. Deterministically computes:
+
+- **Company Profile:** Both companies' fundamentals and all 14 assumptions shown side by side (not as a diff, since there's no natural "base case" between two different companies)
+- **Output Comparison:** Same headline metrics as Mode A, framed as "Company A vs Company B" rather than delta/increase-decrease language
+
+*Tested with AAPL vs. CCL* — correctly identified AAPL as financially stronger across every metric, matching previously verified standalone results for both companies exactly.
+
+### Commentary Discipline (Both Modes)
+
+LLM narrates only already-computed deltas/comparisons — never invents or speculates. Explicitly scoped to describe WHAT differs, not WHY, except where a relationship is directly computable from a single changed variable (e.g., "IRR rose because leverage increased" is fine when leverage was the only input changed — that's direct causation, not speculation). No commentary on deal strategy, negotiation, market conditions, or competitive positioning in either mode. Verified in testing that both modes stay within this scope.
+
 ## Architecture
 
 - **Backend:** Python, openpyxl for Excel generation
@@ -234,12 +260,12 @@ Each user supplies their own API key at request time; keys are never stored, log
 - Validator with pass/degraded/fail status
 - **Excel generator: All six tabs complete** (Assumptions, Sources & Uses, Operating Model, Debt Schedule, Returns, Sensitivity)
 - **Report generator: Complete** (provenance tagging, deterministic feasibility score, BYOK LLM narrative)
+- **Comparison tool: Complete** (scenario diff for same-ticker, company comparison for different-ticker, auto-detected)
 - Mock data for testing without API credentials
 
 ### Open Items / Not Yet Built
 
-- **Scenario/comparison flow:** Duplicate a spreadsheet, edit assumptions, generate a second report, deterministically diff the two — next planned step
-- **Web UI shell:** Not yet built
+- **Web UI shell:** Not yet built — next planned step
 - **Hosting/backend architecture:** TBD (Render/Railway/Fly.io vs. serverless), rate limiting strategy not yet decided
 - **Production dependency note:** LibreOffice is a hard dependency for the production backend (the Excel COM fallback is Windows-dev-only) — this needs to be available in whatever hosting environment gets chosen
 

@@ -1125,7 +1125,8 @@ def generate_narrative(
     structured_data: ExtractedData,
     score_breakdown: ScoreBreakdown,
     provider: str,
-    api_key: str
+    api_key: str,
+    prompt_override: str = None
 ) -> str:
     """
     Generate a narrative report from extracted data and score.
@@ -1135,6 +1136,7 @@ def generate_narrative(
         score_breakdown: Computed feasibility score breakdown
         provider: LLM provider name ("anthropic", "openai", or "gemini")
         api_key: API key for the provider (NOT stored, logged, or written to disk)
+        prompt_override: Optional custom prompt (used by comparison tool)
 
     Returns:
         Generated narrative report text
@@ -1146,8 +1148,11 @@ def generate_narrative(
     if provider not in LLM_PROVIDERS:
         raise ValueError(f"Unsupported LLM provider: {provider}. Supported: {list(LLM_PROVIDERS.keys())}")
 
-    # Build the prompt
-    prompt = build_report_prompt(structured_data, score_breakdown)
+    # Use custom prompt if provided, otherwise build the standard report prompt
+    if prompt_override:
+        prompt = prompt_override
+    else:
+        prompt = build_report_prompt(structured_data, score_breakdown)
 
     # Call the provider
     provider_fn = LLM_PROVIDERS[provider]
