@@ -1,0 +1,107 @@
+.head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.tickerRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.ticker {
+  color: var(--input-blue);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.quality {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding: 0.35rem 0.55rem;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.qualityLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.metricLabel {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-bottom: 0.15rem;
+}
+
+.metricVal {
+  font-size: 0.9rem;
+  color: var(--calculated);
+  font-weight: 500;
+}
+
+.chartLabel {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+  height: 72px;
+  margin-bottom: 0.85rem;
+}
+
+.barCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.bar {
+  width: 100%;
+  max-width: 28px;
+  background: linear-gradient(180deg, #7a9cc8 0%, var(--accent) 100%);
+  border-radius: 3px 3px 0 0;
+  min-height: 4px;
+}
+
+.barYear {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+}
+
+.flags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
