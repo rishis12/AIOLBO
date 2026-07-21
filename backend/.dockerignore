@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test outputs
+*.xlsx
+output/
+
+# Local env files
+.env
+.env.local
+
+# Cache (will be created at runtime)
+.sec_cache/
+
+# Misc
+*.log
+*.tmp
+
+# Vim backup files
+*~
