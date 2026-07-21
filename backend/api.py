@@ -51,10 +51,13 @@ SEC_CONTACT_EMAIL = os.environ.get("SEC_CONTACT_EMAIL", "")
 SEC_USER_AGENT = f"AIO-LBO-Tool {SEC_CONTACT_EMAIL}" if SEC_CONTACT_EMAIL else ""
 TWELVE_DATA_API_KEY = os.environ.get("TWELVE_DATA_API_KEY", "")
 
-# Startup diagnostics
+# Startup diagnostics - print all env vars to debug Render issue
+print(f"[STARTUP] === ALL ENVIRONMENT VARIABLES ===")
+for k, v in sorted(os.environ.items()):
+    print(f"[STARTUP] {k}={v[:50]}{'...' if len(v) > 50 else ''}")
+print(f"[STARTUP] === END ENV VARS ===")
 print(f"[STARTUP] SEC_CONTACT_EMAIL value: '{SEC_CONTACT_EMAIL}'")
 print(f"[STARTUP] SEC_USER_AGENT: '{SEC_USER_AGENT}'")
-print(f"[STARTUP] All SEC/TWELVE env vars: {[(k,v) for k,v in os.environ.items() if 'SEC' in k or 'TWELVE' in k]}")
 
 # CORS: Set FRONTEND_URL in production to lock down to your frontend domain
 # e.g., FRONTEND_URL=https://your-app.vercel.app
