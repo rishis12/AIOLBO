@@ -57,3 +57,14 @@ htmlcov/
 
 # Logs
 *.log
+
+# Node.js
+node_modules/
+frontend/dist/
+
+# Test output
+output/
+test_output.txt
+
+# Vim undo files
+*.un~

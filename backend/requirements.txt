@@ -4,3 +4,7 @@ python-multipart>=0.0.6
 openpyxl>=3.1.2
 requests>=2.31.0
 pydantic>=2.5.0
+# LLM provider SDKs for report generation
+anthropic>=0.39.0
+openai>=1.0.0
+google-genai>=1.0.0

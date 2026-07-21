@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test outputs
+output/
+
+# Local env files
+.env
+.env.local
+
+# Misc
+*.log
+*.tmp
+README.md
+
+# Vim backup files
+*~
+*.un~

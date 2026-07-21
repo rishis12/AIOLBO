@@ -49,6 +49,12 @@ from comparison_tool import (
 SEC_CONTACT_EMAIL = os.environ.get("SEC_CONTACT_EMAIL", "")
 TWELVE_DATA_API_KEY = os.environ.get("TWELVE_DATA_API_KEY", "")
 
+# CORS: Set FRONTEND_URL in production to lock down to your frontend domain
+# e.g., FRONTEND_URL=https://your-app.vercel.app
+# For multiple origins, use comma-separated: https://app1.com,https://app2.com
+# Defaults to "*" (allow all) for local development
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
+
 # Rate limiting for /analyze (protects shared Twelve Data quota)
 RATE_LIMIT_WINDOW = 60  # seconds
 RATE_LIMIT_MAX_REQUESTS = 10  # per IP per window
@@ -416,10 +422,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS configuration - allow all origins for development
+# CORS configuration
+# In production, set FRONTEND_URL to restrict to your actual frontend domain
+cors_origins = (
+    [origin.strip() for origin in FRONTEND_URL.split(",") if origin.strip()]
+    if FRONTEND_URL
+    else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
