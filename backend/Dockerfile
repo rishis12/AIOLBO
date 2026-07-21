@@ -28,9 +28,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY *.py ./
+COPY entrypoint.sh ./
 
-# Create cache directory for SEC data
-RUN mkdir -p .sec_cache
+# Make entrypoint executable and create cache directory
+RUN chmod +x entrypoint.sh && mkdir -p .sec_cache
 
 # Expose port
 EXPOSE 8000
@@ -39,5 +40,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
 
-# Run the application
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application via entrypoint script (for debugging)
+CMD ["./entrypoint.sh"]
