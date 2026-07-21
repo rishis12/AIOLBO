@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import { AssumptionsEditor } from './components/AssumptionsEditor'
 import { CompanySnapshot } from './components/CompanySnapshot'
 import { ComparisonPanel } from './components/ComparisonPanel'
@@ -149,6 +150,7 @@ export default function App() {
       />
 
       {state.toast && <div className="toast">{state.toast}</div>}
+      <Analytics />
     </div>
   )
 }
