@@ -47,6 +47,8 @@ from comparison_tool import (
 # =============================================================================
 
 SEC_CONTACT_EMAIL = os.environ.get("SEC_CONTACT_EMAIL", "")
+# SEC requires User-Agent format: "AppName contact@email.com"
+SEC_USER_AGENT = f"AIO-LBO-Tool {SEC_CONTACT_EMAIL}" if SEC_CONTACT_EMAIL else ""
 TWELVE_DATA_API_KEY = os.environ.get("TWELVE_DATA_API_KEY", "")
 
 # CORS: Set FRONTEND_URL in production to lock down to your frontend domain
@@ -502,7 +504,7 @@ async def analyze_ticker(request: Request, body: AnalyzeRequest):
         # Fetch data
         summary = fetch_ticker_data(
             ticker=ticker,
-            sec_user_agent=SEC_CONTACT_EMAIL,
+            sec_user_agent=SEC_USER_AGENT,
             twelve_data_key=TWELVE_DATA_API_KEY or "",
             verbose=False,
             skip_price=not bool(TWELVE_DATA_API_KEY),
@@ -592,7 +594,7 @@ async def generate_model(body: GenerateRequest):
         # Re-fetch data (or use cached - in production use Redis)
         summary = fetch_ticker_data(
             ticker=ticker,
-            sec_user_agent=SEC_CONTACT_EMAIL,
+            sec_user_agent=SEC_USER_AGENT,
             twelve_data_key=TWELVE_DATA_API_KEY or "",
             verbose=False,
             skip_price=not bool(TWELVE_DATA_API_KEY),
