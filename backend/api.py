@@ -46,18 +46,30 @@ from comparison_tool import (
 # CONFIGURATION
 # =============================================================================
 
-SEC_CONTACT_EMAIL = os.environ.get("SEC_CONTACT_EMAIL", "")
-# SEC requires User-Agent format: "AppName contact@email.com"
-SEC_USER_AGENT = f"AIO-LBO-Tool {SEC_CONTACT_EMAIL}" if SEC_CONTACT_EMAIL else ""
-TWELVE_DATA_API_KEY = os.environ.get("TWELVE_DATA_API_KEY", "")
+# Hardcoded fallbacks for when Render env vars fail (known issue)
+# These will be used if env vars contain command arguments instead of real values
+_FALLBACK_SEC_EMAIL = "sanganeriarishi@gmail.com"
+_FALLBACK_TWELVE_KEY = "bc20362c63734831b459149cf3974842"
 
-# Startup diagnostics - print all env vars to debug Render issue
-print(f"[STARTUP] === ALL ENVIRONMENT VARIABLES ===")
-for k, v in sorted(os.environ.items()):
-    print(f"[STARTUP] {k}={v[:50]}{'...' if len(v) > 50 else ''}")
-print(f"[STARTUP] === END ENV VARS ===")
-print(f"[STARTUP] SEC_CONTACT_EMAIL value: '{SEC_CONTACT_EMAIL}'")
+def _get_env_with_fallback(env_name: str, fallback: str) -> str:
+    """Get env var, but use fallback if value looks like a command argument."""
+    value = os.environ.get(env_name, "")
+    # Detect corrupted env vars (contain ":" like "api:app" or start with "--")
+    if not value or ":" in value or value.startswith("--") or value.startswith("0."):
+        print(f"[CONFIG] {env_name} corrupted ('{value}'), using fallback")
+        return fallback
+    return value
+
+SEC_CONTACT_EMAIL = _get_env_with_fallback("SEC_CONTACT_EMAIL", _FALLBACK_SEC_EMAIL)
+# SEC requires User-Agent format: "AppName contact@email.com"
+SEC_USER_AGENT = f"AIO-LBO-Tool {SEC_CONTACT_EMAIL}"
+TWELVE_DATA_API_KEY = _get_env_with_fallback("TWELVE_DATA_API_KEY", _FALLBACK_TWELVE_KEY)
+
+# Startup diagnostics
+print(f"[STARTUP] === CONFIGURATION ===")
+print(f"[STARTUP] SEC_CONTACT_EMAIL: '{SEC_CONTACT_EMAIL}'")
 print(f"[STARTUP] SEC_USER_AGENT: '{SEC_USER_AGENT}'")
+print(f"[STARTUP] TWELVE_DATA_API_KEY: '{TWELVE_DATA_API_KEY[:8]}...' (truncated)")
 
 # CORS: Set FRONTEND_URL in production to lock down to your frontend domain
 # e.g., FRONTEND_URL=https://your-app.vercel.app
