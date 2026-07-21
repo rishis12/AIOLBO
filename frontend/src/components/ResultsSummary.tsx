@@ -104,7 +104,7 @@ export function ResultsSummary({ results, onDownload, onReport, showReport }: Pr
             Download Excel
           </button>
           <button type="button" className="btn btn-secondary btn-block" onClick={onReport}>
-            {showReport ? 'Hide Report' : 'Generate Report'}
+            {showReport ? 'Hide Report' : 'Generate AI Analysis Report'}
           </button>
         </div>
 

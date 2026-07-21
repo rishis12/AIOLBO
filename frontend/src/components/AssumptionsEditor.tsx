@@ -17,6 +17,19 @@ const GROUPS: Array<{ id: AssumptionMeta['group']; title: string }> = [
   { id: 'exit', title: 'Exit' },
 ]
 
+/**
+ * Compute implied debt/equity split from assumptions.
+ * Formula: Debt % = Leverage Multiple / (Entry Multiple × (1 + Transaction Fee %))
+ * Note: Entry EBITDA cancels out, so split depends only on multiples and fee.
+ */
+function computeDebtEquitySplit(assumptions: Assumptions): { debtPct: number; equityPct: number } {
+  const { entryMultiple, leverageMultiple, transactionFeePct } = assumptions
+  const totalUsesFactor = entryMultiple * (1 + transactionFeePct)
+  const debtPct = totalUsesFactor > 0 ? leverageMultiple / totalUsesFactor : 0
+  const equityPct = 1 - debtPct
+  return { debtPct, equityPct }
+}
+
 function displayValue(value: number, format: AssumptionMeta['format']): string {
   if (format === 'percent') return (value * 100).toFixed(1)
   if (format === 'years') return String(Math.round(value))
@@ -45,6 +58,9 @@ export function AssumptionsEditor({
     AssumptionKey,
     AssumptionMeta
   >
+
+  // Compute debt/equity split live from current assumptions
+  const { debtPct, equityPct } = computeDebtEquitySplit(assumptions)
 
   return (
     <section className={`tile tile-assumptions collapsible ${collapsed ? 'collapsed' : ''}`}>
@@ -99,6 +115,15 @@ export function AssumptionsEditor({
                   )
                 })}
             </div>
+            {/* Show Implied Debt/Equity Split after Deal Structure fields */}
+            {g.id === 'deal' && (
+              <div className={styles.impliedSplit}>
+                <span className={styles.impliedLabel}>Implied Debt / Equity Split</span>
+                <span className={styles.impliedValue}>
+                  {(debtPct * 100).toFixed(0)}% debt / {(equityPct * 100).toFixed(0)}% equity
+                </span>
+              </div>
+            )}
           </div>
         ))}
 

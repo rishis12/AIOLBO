@@ -801,6 +801,44 @@ def build_sources_uses_tab(wb: Workbook, named_ranges: dict):
     current_row += 3
 
     # ==========================================================================
+    # DEBT / EQUITY SPLIT
+    # ==========================================================================
+
+    ws.cell(row=current_row, column=2, value="Debt / Equity Split")
+    ws.cell(row=current_row, column=2).font = SUBSECTION_FONT
+    ws.cell(row=current_row, column=2).fill = SUBSECTION_FILL
+    ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=3)
+    current_row += 1
+
+    # Debt % of Total = New Debt Raised / Total Uses
+    ws.cell(row=current_row, column=2, value="Debt % of Total").font = BLACK_FONT
+    debt_pct_cell = ws.cell(row=current_row, column=3)
+    debt_pct_cell.value = f"=C{debt_row}/C{total_uses_row}"
+    debt_pct_cell.font = BLACK_FONT
+    debt_pct_cell.number_format = '0.0%'
+    debt_pct_row = current_row
+
+    # Create named range for DebtPct
+    defn = DefinedName('DebtPct', attr_text=f"'Sources & Uses'!C{debt_pct_row}")
+    wb.defined_names['DebtPct'] = defn
+
+    current_row += 1
+
+    # Equity % of Total = Sponsor Equity / Total Uses
+    ws.cell(row=current_row, column=2, value="Equity % of Total").font = BLACK_FONT
+    equity_pct_cell = ws.cell(row=current_row, column=3)
+    equity_pct_cell.value = f"=C{equity_row}/C{total_uses_row}"
+    equity_pct_cell.font = BLACK_FONT
+    equity_pct_cell.number_format = '0.0%'
+    equity_pct_row = current_row
+
+    # Create named range for EquityPct
+    defn = DefinedName('EquityPct', attr_text=f"'Sources & Uses'!C{equity_pct_row}")
+    wb.defined_names['EquityPct'] = defn
+
+    current_row += 3
+
+    # ==========================================================================
     # BALANCE CHECK
     # ==========================================================================
 
@@ -835,6 +873,8 @@ def build_sources_uses_tab(wb: Workbook, named_ranges: dict):
         'debt_row': debt_row,
         'equity_row': equity_row,
         'total_sources_row': total_sources_row,
+        'debt_pct_row': debt_pct_row,
+        'equity_pct_row': equity_pct_row,
         'balance_row': balance_row
     }
 

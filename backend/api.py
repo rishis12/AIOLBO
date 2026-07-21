@@ -248,6 +248,32 @@ def build_company_snapshot(summary: dict, validation: dict) -> CompanySnapshot:
     )
 
 
+def compute_debt_equity_split(assumptions: Dict[str, Any]) -> Dict[str, float]:
+    """
+    Compute debt/equity split from assumptions.
+
+    Formula:
+    - Total Uses = Entry EBITDA × Entry Multiple × (1 + Transaction Fee %)
+    - New Debt = Entry EBITDA × Leverage Multiple
+    - Debt % = New Debt / Total Uses = Leverage Multiple / (Entry Multiple × (1 + Transaction Fee %))
+    - Equity % = 1 - Debt %
+
+    Note: Entry EBITDA cancels out, so the split depends only on the multiples and fee.
+    """
+    entry_multiple = assumptions.get("entryMultiple", 8.0)
+    leverage_multiple = assumptions.get("leverageMultiple", 5.5)
+    transaction_fee_pct = assumptions.get("transactionFeePct", 0.02)
+
+    total_uses_factor = entry_multiple * (1 + transaction_fee_pct)
+    debt_pct = leverage_multiple / total_uses_factor if total_uses_factor > 0 else 0
+    equity_pct = 1 - debt_pct
+
+    return {
+        "debtPct": round(debt_pct, 4),
+        "equityPct": round(equity_pct, 4),
+    }
+
+
 def build_default_assumptions(summary: dict, validation: dict) -> Dict[str, Any]:
     """Build default assumptions from summary data."""
     # Calculate revenue growth rate
@@ -522,6 +548,9 @@ async def analyze_ticker(request: Request, body: AnalyzeRequest):
         assumptions = build_default_assumptions(summary, validation)
         meta = build_assumption_meta(summary, validation)
 
+        # Compute debt/equity split from default assumptions
+        debt_equity_split = compute_debt_equity_split(assumptions)
+
         # Store summary in request state for generate endpoint
         # (In production, you'd use a cache like Redis)
 
@@ -530,6 +559,9 @@ async def analyze_ticker(request: Request, body: AnalyzeRequest):
             "snapshot": snapshot.model_dump(),
             "assumptions": assumptions,
             "assumptionMeta": [m.model_dump() for m in meta],
+            # Computed debt/equity split for immediate display
+            "debtPct": debt_equity_split["debtPct"],
+            "equityPct": debt_equity_split["equityPct"],
             # Include summary for generate endpoint (internal use)
             "_summary": summary,
             "_validation": validation,
@@ -663,6 +695,9 @@ async def generate_model(body: GenerateRequest):
                 except LLMProviderError as e:
                     report_markdown = f"*Error generating narrative: {e}*"
 
+            # Compute debt/equity split from user's assumptions
+            debt_equity_split = compute_debt_equity_split(assumptions)
+
             return {
                 "irr": irr,
                 "moic": moic,
@@ -671,6 +706,8 @@ async def generate_model(body: GenerateRequest):
                 "reportMarkdown": report_markdown,
                 "xlsxBase64": xlsx_base64,
                 "sensitivity": [s.model_dump() for s in sensitivity],
+                "debtPct": debt_equity_split["debtPct"],
+                "equityPct": debt_equity_split["equityPct"],
             }
 
         finally:

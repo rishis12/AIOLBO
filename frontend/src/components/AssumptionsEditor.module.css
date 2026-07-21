@@ -1,19 +1,36 @@
+/* AssumptionsEditor — Dark Mode Financial Dashboard */
+
 .group {
-  margin-bottom: 1.15rem;
+  margin-bottom: var(--space-5);
+}
+
+.group:last-child {
+  margin-bottom: 0;
 }
 
 .groupTitle {
-  margin: 0 0 0.65rem;
+  margin: 0 0 var(--space-3);
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--accent);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.groupTitle::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 2px;
 }
 
 .fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem 0.85rem;
+  gap: var(--space-3) var(--space-4);
 }
 
 .field {
@@ -25,12 +42,12 @@
 }
 
 .inputWrap .input {
-  padding-right: 1.75rem;
+  padding-right: 2rem;
 }
 
 .suffix {
   position: absolute;
-  right: 0.65rem;
+  right: var(--space-3);
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-dim);
@@ -39,11 +56,12 @@
   pointer-events: none;
 }
 
+/* Flag tags for data provenance */
 .flagTag {
   display: inline-block;
-  margin-left: 0.4rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: 3px;
+  margin-left: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
   font-size: 0.6rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -53,20 +71,78 @@
 
 .flagTag.defaulted {
   background: var(--defaulted);
-  color: #6a6418;
+  color: var(--defaulted-text);
 }
 
 .flagTag.substituted {
   background: var(--substituted);
-  color: #7a4a1e;
+  color: var(--substituted-text);
+}
+
+.flagTag.calculated {
+  background: var(--accent-muted);
+  color: var(--accent);
 }
 
 .fallbackHint {
-  color: #9a6230;
+  color: var(--warning);
+}
+
+/* Tooltip for field info */
+.fieldInfo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: var(--space-1);
+  border-radius: 50%;
+  background: var(--surface-elevated);
+  color: var(--text-dim);
+  font-size: 0.65rem;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.fieldInfo:hover {
+  color: var(--text-muted);
+  background: var(--border);
+}
+
+/* Implied Debt/Equity Split display */
+.impliedSplit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-elevated);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border);
+}
+
+.impliedLabel {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.impliedValue {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  letter-spacing: 0.01em;
 }
 
 @media (max-width: 480px) {
   .fields {
     grid-template-columns: 1fr;
+  }
+
+  .impliedSplit {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
   }
 }
