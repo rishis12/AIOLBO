@@ -51,6 +51,10 @@ SEC_CONTACT_EMAIL = os.environ.get("SEC_CONTACT_EMAIL", "")
 SEC_USER_AGENT = f"AIO-LBO-Tool {SEC_CONTACT_EMAIL}" if SEC_CONTACT_EMAIL else ""
 TWELVE_DATA_API_KEY = os.environ.get("TWELVE_DATA_API_KEY", "")
 
+# Startup diagnostics
+print(f"[STARTUP] SEC_CONTACT_EMAIL set: {bool(SEC_CONTACT_EMAIL)}")
+print(f"[STARTUP] SEC_USER_AGENT: '{SEC_USER_AGENT}'")
+
 # CORS: Set FRONTEND_URL in production to lock down to your frontend domain
 # e.g., FRONTEND_URL=https://your-app.vercel.app
 # For multiple origins, use comma-separated: https://app1.com,https://app2.com
