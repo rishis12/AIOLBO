@@ -296,8 +296,15 @@ def compute_debt_equity_split(assumptions: Dict[str, Any]) -> Dict[str, float]:
     }
 
 
+MAX_CAPEX_PCT = 0.15  # Cap CapEx at 15% of revenue for LBO modeling
+
+
 def build_default_assumptions(summary: dict, validation: dict) -> Dict[str, Any]:
-    """Build default assumptions from summary data."""
+    """Build default assumptions from summary data.
+
+    Returns dict with 'assumptions' and 'adjustments' keys.
+    'adjustments' contains info about any values that were capped/modified.
+    """
     # Calculate revenue growth rate
     growth_rate, _, _ = calculate_revenue_growth_rate(summary)
 
@@ -305,6 +312,7 @@ def build_default_assumptions(summary: dict, validation: dict) -> Dict[str, Any]
     ebitda_margin = 0.30  # Default
     capex_pct = 0.03
     da_pct = 0.03
+    raw_capex_pct = None  # Track original value if capped
 
     fiscal_years = summary.get("fiscal_years", {})
 
@@ -320,34 +328,48 @@ def build_default_assumptions(summary: dict, validation: dict) -> Dict[str, Any]
             if ebitda is not None:
                 ebitda_margin = ebitda / revenue
             if capex is not None:
-                capex_pct = abs(capex) / revenue
+                raw_capex_pct = abs(capex) / revenue
+                capex_pct = raw_capex_pct
             if da is not None:
                 da_pct = da / revenue
             break
 
+    # Cap CapEx at MAX_CAPEX_PCT to keep model realistic
+    capex_capped = False
+    if capex_pct > MAX_CAPEX_PCT:
+        capex_capped = True
+        capex_pct = MAX_CAPEX_PCT
+
     return {
-        "entryMultiple": 8.0,
-        "offerPremium": 0.25,
-        "leverageMultiple": 5.5,
-        "transactionFeePct": 0.02,
-        "revenueGrowth": growth_rate,
-        "ebitdaMargin": ebitda_margin,
-        "capexPct": capex_pct,
-        "daPct": da_pct,
-        "nwcPct": 0.0,
-        "interestRate": 0.08,
-        "mandatoryAmortPct": 0.01,
-        "exitYear": 5,
-        "exitMultiple": 8.0,
-        "taxRate": 0.25,
+        "assumptions": {
+            "entryMultiple": 8.0,
+            "offerPremium": 0.25,
+            "leverageMultiple": 5.5,
+            "transactionFeePct": 0.02,
+            "revenueGrowth": growth_rate,
+            "ebitdaMargin": ebitda_margin,
+            "capexPct": capex_pct,
+            "daPct": da_pct,
+            "nwcPct": 0.0,
+            "interestRate": 0.08,
+            "mandatoryAmortPct": 0.01,
+            "exitYear": 5,
+            "exitMultiple": 8.0,
+            "taxRate": 0.25,
+        },
+        "adjustments": {
+            "capexCapped": capex_capped,
+            "rawCapexPct": raw_capex_pct,
+        },
     }
 
 
-def build_assumption_meta(summary: dict, validation: dict) -> List[AssumptionMeta]:
+def build_assumption_meta(summary: dict, validation: dict, adjustments: Optional[Dict[str, Any]] = None) -> List[AssumptionMeta]:
     """Build assumption metadata for the frontend."""
     # Check for defaulted/substituted fields
     defaults = validation.get("defaults_applied", [])
     subs = validation.get("substitute_warnings", [])
+    adjustments = adjustments or {}
 
     def get_flag(key: str) -> Optional[str]:
         key_lower = key.lower()
@@ -359,6 +381,13 @@ def build_assumption_meta(summary: dict, validation: dict) -> List[AssumptionMet
                 return "substituted"
         return None
 
+    # Check if CapEx was capped
+    capex_capped = adjustments.get("capexCapped", False)
+    raw_capex_pct = adjustments.get("rawCapexPct")
+    capex_source = "Most recent fiscal year"
+    if capex_capped and raw_capex_pct:
+        capex_source = f"Capped at 15% (actual: {raw_capex_pct*100:.1f}%)"
+
     return [
         AssumptionMeta(key="entryMultiple", label="Entry EV/EBITDA Multiple", group="deal", format="multiple", source="User assumption", flag=None),
         AssumptionMeta(key="offerPremium", label="Offer Premium", group="deal", format="percent", source="User assumption", flag=None),
@@ -366,7 +395,7 @@ def build_assumption_meta(summary: dict, validation: dict) -> List[AssumptionMet
         AssumptionMeta(key="transactionFeePct", label="Transaction Fee %", group="deal", format="percent", source="User assumption", flag=None),
         AssumptionMeta(key="revenueGrowth", label="Revenue Growth Rate", group="operating", format="percent", source="Calculated from historicals", flag=get_flag("revenue_growth")),
         AssumptionMeta(key="ebitdaMargin", label="EBITDA Margin", group="operating", format="percent", source="Most recent fiscal year", flag=get_flag("ebitda")),
-        AssumptionMeta(key="capexPct", label="CapEx % of Revenue", group="operating", format="percent", source="Most recent fiscal year", flag=get_flag("capex")),
+        AssumptionMeta(key="capexPct", label="CapEx % of Revenue", group="operating", format="percent", source=capex_source, flag="substituted" if capex_capped else get_flag("capex")),
         AssumptionMeta(key="daPct", label="D&A % of Revenue", group="operating", format="percent", source="Most recent fiscal year", flag=get_flag("depreciation")),
         AssumptionMeta(key="nwcPct", label="Change in NWC %", group="operating", format="percent", source="User assumption", flag=None),
         AssumptionMeta(key="interestRate", label="Interest Rate", group="debt", format="percent", source="User assumption", flag=None),
@@ -567,8 +596,10 @@ async def analyze_ticker(request: Request, body: AnalyzeRequest):
 
         # Success - build response
         snapshot = build_company_snapshot(summary, validation)
-        assumptions = build_default_assumptions(summary, validation)
-        meta = build_assumption_meta(summary, validation)
+        assumptions_result = build_default_assumptions(summary, validation)
+        assumptions = assumptions_result["assumptions"]
+        adjustments = assumptions_result["adjustments"]
+        meta = build_assumption_meta(summary, validation, adjustments)
 
         # Compute debt/equity split from default assumptions
         debt_equity_split = compute_debt_equity_split(assumptions)
