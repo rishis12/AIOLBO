@@ -18,11 +18,6 @@ export function HowItWorks() {
           <strong>Compare</strong> scenarios or companies and optionally request LLM commentary (BYOK).
         </li>
       </ol>
-      <p className={styles.note}>
-        This is a UI shell with demo data. Try <span className="mono">AAPL</span>,{' '}
-        <span className="mono">CCL</span>, or <span className="mono">FIZZ</span>. Use{' '}
-        <span className="mono">JPM</span> / <span className="mono">ARM</span> to see validation failures.
-      </p>
     </section>
   )
 }

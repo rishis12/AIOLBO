@@ -7,6 +7,8 @@ interface Props {
   onDownload: () => void
   onReport: () => void
   showReport: boolean
+  hasLlmKey: boolean
+  onNeedKey: () => void
 }
 
 function irrColor(irr: number): string {
@@ -15,7 +17,7 @@ function irrColor(irr: number): string {
   return 'var(--danger)'
 }
 
-export function ResultsSummary({ results, onDownload, onReport, showReport }: Props) {
+export function ResultsSummary({ results, onDownload, onReport, showReport, hasLlmKey, onNeedKey }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const f = results.feasibility
   const pct = (f.total / 100) * 100
@@ -103,12 +105,22 @@ export function ResultsSummary({ results, onDownload, onReport, showReport }: Pr
           <button type="button" className="btn btn-primary btn-block" onClick={onDownload}>
             Download Excel
           </button>
-          <button type="button" className="btn btn-secondary btn-block" onClick={onReport}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-block"
+            onClick={hasLlmKey ? onReport : onNeedKey}
+          >
             {showReport ? 'Hide Report' : 'Generate AI Analysis Report'}
           </button>
         </div>
 
-        {showReport && (
+        {!hasLlmKey && (
+          <p className={styles.keyHint}>
+            Add an LLM API key in Settings to generate AI analysis reports.
+          </p>
+        )}
+
+        {showReport && hasLlmKey && (
           <pre className={styles.report}>{results.reportMarkdown}</pre>
         )}
       </div>

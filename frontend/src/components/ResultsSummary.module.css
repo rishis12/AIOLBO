@@ -162,6 +162,17 @@
   gap: var(--space-3);
 }
 
+.keyHint {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--warning);
+  text-align: center;
+}
+
 .actionBtn {
   display: flex;
   align-items: center;

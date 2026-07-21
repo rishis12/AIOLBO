@@ -111,6 +111,11 @@ export default function App() {
               onDownload={state.downloadExcel}
               onReport={() => state.setShowReport((v) => !v)}
               showReport={state.showReport}
+              hasLlmKey={hasLlmKey}
+              onNeedKey={() => {
+                state.showToast('Add an LLM API key in Settings')
+                setSettingsOpen(true)
+              }}
             />
           )}
 
