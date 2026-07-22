@@ -262,13 +262,7 @@ LLM narrates only already-computed deltas/comparisons — never invents or specu
 - **Report generator: Complete** (provenance tagging, deterministic feasibility score, BYOK LLM narrative)
 - **Comparison tool: Complete** (scenario diff for same-ticker, company comparison for different-ticker, auto-detected)
 - Mock data for testing without API credentials
-
-### Open Items / Not Yet Built
-
-- **Web UI shell:** Not yet built — next planned step
-- **Hosting/backend architecture:** TBD (Render/Railway/Fly.io vs. serverless), rate limiting strategy not yet decided
-- **Production dependency note:** LibreOffice is a hard dependency for the production backend (the Excel COM fallback is Windows-dev-only) — this needs to be available in whatever hosting environment gets chosen
-
+- Vercel Frontend/ Render Backend
 ### Known Limitations (v2 Candidates)
 
 - Sensitivity tab only varies Entry/Exit Multiple, not Leverage Multiple or Growth Rate (would require rebuilding full debt paydown logic per grid cell)
